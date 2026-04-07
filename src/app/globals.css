@@ -1,15 +1,21 @@
 @import "tailwindcss";
+@import "@heroui/react/styles";
 
 :root {
   --background: #ffffff;
   --foreground: #171717;
+  --panel: #ffffff;
+  --panel-border: #e4e4e7;
+  --muted: #71717a;
+  --brand: #18181b;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+  --font-sans: "PingFang SC", "Helvetica Neue", Helvetica, Arial, sans-serif;
+  --font-mono: "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono",
+    "Courier New", monospace;
 }
 
 @media (prefers-color-scheme: dark) {
@@ -20,7 +26,244 @@
 }
 
 body {
-  background: var(--background);
+  background: #f4f4f5;
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-sans);
+}
+
+::selection {
+  background: #d4d4d8;
+  color: #09090b;
+}
+
+.login-bg-grid {
+  background-image:
+    linear-gradient(to right, rgba(161, 161, 170, 0.12) 1px, transparent 1px),
+    linear-gradient(to bottom, rgba(161, 161, 170, 0.12) 1px, transparent 1px);
+  background-size: 34px 34px;
+  mask-image: radial-gradient(circle at center, black 40%, transparent 100%);
+}
+
+.login-orb {
+  position: absolute;
+  border-radius: 9999px;
+  filter: blur(50px);
+}
+
+.login-orb-1 {
+  left: -90px;
+  top: -70px;
+  height: 260px;
+  width: 260px;
+  background: rgba(161, 161, 170, 0.35);
+  animation: float-slow 12s ease-in-out infinite;
+}
+
+.login-orb-2 {
+  right: 8%;
+  top: 10%;
+  height: 200px;
+  width: 200px;
+  background: rgba(212, 212, 216, 0.35);
+  animation: float-mid 9s ease-in-out infinite;
+}
+
+.login-orb-3 {
+  right: -80px;
+  bottom: -80px;
+  height: 260px;
+  width: 260px;
+  background: rgba(113, 113, 122, 0.18);
+  animation: float-slow 14s ease-in-out infinite;
+}
+
+.mascot-wrap {
+  position: relative;
+  width: 76px;
+  padding-top: 4px;
+  animation: mascot-bob 3.8s ease-in-out infinite;
+}
+
+.mascot-head {
+  position: relative;
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  width: 76px;
+  height: 62px;
+  border: 2px solid #27272a;
+  border-radius: 18px;
+  background: #ffffff;
+  align-items: center;
+}
+
+.mascot-eye {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 13px;
+  height: 13px;
+  border-radius: 9999px;
+  background: #18181b;
+  animation: mascot-blink 5.2s infinite;
+}
+
+.mascot-pupil {
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #fafafa;
+  transition: transform 180ms ease;
+}
+
+.mascot-body {
+  width: 42px;
+  height: 24px;
+  border: 2px solid #27272a;
+  border-top: none;
+  border-radius: 0 0 14px 14px;
+  background: #f4f4f5;
+  margin: 0 auto;
+}
+
+.mascot-brow {
+  position: absolute;
+  top: 13px;
+  width: 13px;
+  height: 2px;
+  border-radius: 9999px;
+  background: #27272a;
+}
+
+.mascot-brow-left {
+  left: 22px;
+  transform: rotate(18deg);
+}
+
+.mascot-brow-right {
+  right: 22px;
+  transform: rotate(-18deg);
+}
+
+.mascot-head.is-confused {
+  border-color: #3f3f46;
+}
+
+.mascot-head.is-celebrate {
+  animation: mascot-pop 0.55s ease;
+}
+
+.mascot-spark {
+  position: absolute;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #52525b;
+  opacity: 0;
+  animation: spark-pop 1s ease infinite;
+}
+
+.mascot-spark-1 {
+  left: -7px;
+  top: 8px;
+}
+
+.mascot-spark-2 {
+  right: -7px;
+  top: 12px;
+  animation-delay: 0.2s;
+}
+
+.mascot-spark-3 {
+  left: 34px;
+  top: -7px;
+  animation-delay: 0.1s;
+}
+
+.mascot-hand {
+  position: absolute;
+  top: 21px;
+  width: 16px;
+  height: 7px;
+  border-radius: 9999px;
+  background: #27272a;
+}
+
+.mascot-hand-left {
+  left: 18px;
+  transform: rotate(22deg);
+}
+
+.mascot-hand-right {
+  right: 18px;
+  transform: rotate(-22deg);
+}
+
+@keyframes float-slow {
+  0%,
+  100% {
+    transform: translateY(0px) translateX(0px);
+  }
+  50% {
+    transform: translateY(18px) translateX(14px);
+  }
+}
+
+@keyframes float-mid {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-16px);
+  }
+}
+
+@keyframes mascot-bob {
+  0%,
+  100% {
+    transform: translateY(0px);
+  }
+  50% {
+    transform: translateY(-5px);
+  }
+}
+
+@keyframes mascot-blink {
+  0%,
+  45%,
+  47%,
+  100% {
+    transform: scaleY(1);
+  }
+  46% {
+    transform: scaleY(0.12);
+  }
+}
+
+@keyframes mascot-pop {
+  0% {
+    transform: scale(1);
+  }
+  45% {
+    transform: scale(1.08);
+  }
+  100% {
+    transform: scale(1);
+  }
+}
+
+@keyframes spark-pop {
+  0% {
+    opacity: 0;
+    transform: translateY(6px) scale(0.8);
+  }
+  35% {
+    opacity: 1;
+    transform: translateY(0px) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-8px) scale(0.85);
+  }
 }

@@ -1,0 +1,122 @@
+import { NextResponse } from "next/server";
+import { z } from "zod";
+import { requireAuth } from "@/lib/auth/guard";
+import { canEditInventory } from "@/lib/auth/permissions";
+import { prisma } from "@/lib/db";
+
+const stockStatusEnum = z.enum(["normal", "low", "out"]);
+
+const createProductSchema = z.object({
+  name: z.string().trim().min(1, "商品名称不能为空").max(100, "商品名称最多 100 字"),
+  categoryId: z.string().trim().min(1, "请选择分类"),
+  unit: z.string().trim().min(1, "单位不能为空").max(20, "单位最多 20 字"),
+  spec: z.string().trim().max(100, "规格最多 100 字").optional().default(""),
+  currentStock: z.coerce.number().min(0, "当前库存不能小于 0"),
+  safetyStock: z.coerce.number().min(0, "安全库存不能小于 0"),
+  location: z.string().trim().max(100, "存放位置最多 100 字").optional().default(""),
+  remark: z.string().trim().max(300, "备注最多 300 字").optional().default(""),
+});
+
+function getStockStatus(currentStock: number, safetyStock: number) {
+  if (currentStock === 0) return "out" as const;
+  if (currentStock <= safetyStock) return "low" as const;
+  return "normal" as const;
+}
+
+export async function GET(request: Request) {
+  const { response } = await requireAuth();
+  if (response) return response;
+
+  const url = new URL(request.url);
+  const includeInactive = url.searchParams.get("includeInactive") === "true";
+  const q = (url.searchParams.get("q") ?? "").trim();
+  const categoryId = (url.searchParams.get("categoryId") ?? "").trim();
+  const stockStatusRaw = (url.searchParams.get("stockStatus") ?? "").trim();
+
+  const stockStatus = stockStatusEnum.safeParse(stockStatusRaw);
+
+  const products = await prisma.product.findMany({
+    where: {
+      isActive: includeInactive ? undefined : true,
+      name: q
+        ? {
+            contains: q,
+            mode: "insensitive",
+          }
+        : undefined,
+      categoryId: categoryId || undefined,
+    },
+    include: {
+      category: {
+        select: { id: true, name: true },
+      },
+    },
+    orderBy: [{ updatedAt: "desc" }],
+  });
+
+  const withStatus = products.map((item) => {
+    const current = Number(item.currentStock);
+    const safety = Number(item.safetyStock);
+    return {
+      ...item,
+      stockStatus: getStockStatus(current, safety),
+    };
+  });
+
+  const items =
+    stockStatus.success && stockStatus.data
+      ? withStatus.filter((item) => item.stockStatus === stockStatus.data)
+      : withStatus;
+
+  return NextResponse.json({ items });
+}
+
+export async function POST(request: Request) {
+  const auth = await requireAuth();
+  if (auth.response) return auth.response;
+  if (!auth.user || !canEditInventory(auth.user.role)) {
+    return NextResponse.json({ message: "无权限操作" }, { status: 403 });
+  }
+
+  try {
+    const body = createProductSchema.parse(await request.json());
+
+    const category = await prisma.category.findUnique({
+      where: { id: body.categoryId },
+      select: { id: true, isActive: true },
+    });
+
+    if (!category || !category.isActive) {
+      return NextResponse.json({ message: "分类不存在或已停用" }, { status: 400 });
+    }
+
+    const created = await prisma.product.create({
+      data: {
+        name: body.name,
+        categoryId: body.categoryId,
+        unit: body.unit,
+        spec: body.spec || null,
+        currentStock: body.currentStock,
+        safetyStock: body.safetyStock,
+        location: body.location || null,
+        remark: body.remark || null,
+        isActive: true,
+        createdBy: auth.user.sub,
+        updatedBy: auth.user.sub,
+      },
+      include: {
+        category: { select: { id: true, name: true } },
+      },
+    });
+
+    return NextResponse.json({ item: created }, { status: 201 });
+  } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json(
+        { message: error.issues[0]?.message ?? "参数错误" },
+        { status: 400 },
+      );
+    }
+    return NextResponse.json({ message: "创建商品失败" }, { status: 500 });
+  }
+}

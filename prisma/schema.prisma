@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  SUPER_ADMIN
+  ADMIN
+  USER
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+enum StockLogType {
+  IN
+  OUT
+  ADJUST
+  DAMAGE
+  MANUAL
+}
+
+model User {
+  id           String      @id @default(cuid())
+  username     String      @unique
+  avatarUrl    String?
+  passwordHash String
+  role         Role        @default(USER)
+  canManageUsers Boolean   @default(false)
+  status       UserStatus  @default(ACTIVE)
+  createdAt    DateTime    @default(now())
+  updatedAt    DateTime    @updatedAt
+
+  stockLogs    StockLog[]
+}
+
+model Category {
+  id        String    @id @default(cuid())
+  name      String    @unique
+  sort      Int       @default(0)
+  isActive  Boolean   @default(true)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+
+  products  Product[]
+}
+
+model Product {
+  id           String    @id @default(cuid())
+  name         String
+  categoryId   String
+  unit         String
+  spec         String?
+  currentStock Decimal   @default(0) @db.Decimal(14, 2)
+  safetyStock  Decimal   @default(0) @db.Decimal(14, 2)
+  location     String?
+  remark       String?
+  isActive     Boolean   @default(true)
+  createdBy    String
+  updatedBy    String
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  category     Category  @relation(fields: [categoryId], references: [id])
+  logs         StockLog[]
+
+  @@index([name])
+  @@index([categoryId])
+  @@index([isActive])
+}
+
+model StockLog {
+  id          String       @id @default(cuid())
+  productId   String
+  type        StockLogType
+  quantity    Decimal      @db.Decimal(14, 2)
+  beforeStock Decimal      @db.Decimal(14, 2)
+  afterStock  Decimal      @db.Decimal(14, 2)
+  remark      String?
+  operatorId  String
+  createdAt   DateTime     @default(now())
+
+  product     Product      @relation(fields: [productId], references: [id])
+  operator    User         @relation(fields: [operatorId], references: [id])
+
+  @@index([productId, createdAt])
+  @@index([operatorId])
+}

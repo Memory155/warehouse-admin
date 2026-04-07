@@ -355,6 +355,76 @@ npx prisma migrate deploy
 - 低库存/缺货展示正确
 - 看板统计与列表一致
 
+### 10.5 后续每次改代码如何再次上线（详细步骤）
+
+下面流程适用于你已经完成首发部署，后续要发布新版本。
+
+#### A. 日常发布（直接推主分支）
+1. 本地拉取最新代码：
+```bash
+git pull
+```
+2. 修改代码后先做本地检查：
+```bash
+npm run lint
+npm run build
+```
+3. 提交并推送：
+```bash
+git add .
+git commit -m "feat: 你的改动说明"
+git push
+```
+4. Vercel 会自动触发新部署（Auto Deploy）。
+5. 部署完成后在 Vercel `Deployments` 查看状态，打开线上地址验收。
+
+#### B. 推荐发布（分支 + PR）
+1. 新建功能分支：
+```bash
+git checkout -b codex/feature-xxx
+```
+2. 开发并自测：
+```bash
+npm run lint
+npm run build
+```
+3. 推送分支并发起 PR：
+```bash
+git add .
+git commit -m "feat: 你的改动说明"
+git push -u origin codex/feature-xxx
+```
+4. Vercel 会自动生成 Preview 环境给你验收。
+5. 验收通过后合并 PR 到主分支，Vercel 自动发布 Production。
+
+#### C. 如果这次改动包含数据库结构变更（Prisma schema 有变）
+1. 本地生成并提交迁移文件：
+```bash
+npx prisma migrate dev --name your_migration_name
+```
+2. 确保 `prisma/migrations/...` 已提交到 Git。
+3. 代码上线后，对线上数据库执行：
+```bash
+npx prisma migrate deploy
+```
+4. 如果需要补初始化/默认数据，再执行：
+```bash
+npx prisma db seed
+```
+
+#### D. 每次上线后的最小验收
+1. 登录是否正常
+2. 首页、商品、分类、库存记录页面是否可打开
+3. 用户管理（若有权限）是否正常
+4. 关键写操作（新增商品、库存变动）是否成功
+5. 控制台/日志是否无致命报错
+
+#### E. 常见发布问题快速处理
+1. Vercel 构建失败：先本地执行 `npm run build`，修复后再推送。
+2. 数据库字段报错：确认是否忘了执行 `npx prisma migrate deploy`。
+3. 登录异常：检查 Vercel 环境变量 `DATABASE_URL`、`AUTH_SECRET` 是否正确。
+4. 改了环境变量没生效：在 Vercel 重新部署一次（Redeploy）。
+
 ---
 
 ## 11. 安全与稳定性（最小必做）

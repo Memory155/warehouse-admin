@@ -57,6 +57,7 @@ export async function POST(request: Request) {
 
     return response;
   } catch (error) {
+    console.error("login error:", error);
     if (error instanceof z.ZodError) {
       return NextResponse.json(
         { message: error.issues[0]?.message ?? "参数错误" },

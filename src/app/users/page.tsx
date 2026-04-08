@@ -19,6 +19,7 @@ type ManagedUser = {
   id: string;
   username: string;
   avatarUrl: string | null;
+  sort: number;
   role: Role;
   canManageUsers: boolean;
   status: UserStatus;
@@ -74,6 +75,8 @@ export default function UsersPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<EditUserForm | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [ordering, setOrdering] = useState(false);
 
   const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
   const roleOptions = isSuperAdmin
@@ -260,6 +263,83 @@ export default function UsersPage() {
     }
   }
 
+  function canDragUser(item: ManagedUser) {
+    return item.role !== "SUPER_ADMIN";
+  }
+
+  function moveUser(list: ManagedUser[], fromId: string, toId: string) {
+    const fromIndex = list.findIndex((item) => item.id === fromId);
+    const toIndex = list.findIndex((item) => item.id === toId);
+    if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return list;
+
+    const fromUser = list[fromIndex];
+    const toUser = list[toIndex];
+    if (!fromUser || !toUser || !canDragUser(fromUser) || !canDragUser(toUser)) {
+      return list;
+    }
+
+    const next = [...list];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    return next;
+  }
+
+  async function persistOrder(nextUsers: ManagedUser[]) {
+    const nonSuperAdminUsers = nextUsers.filter((item) => item.role !== "SUPER_ADMIN");
+    setOrdering(true);
+
+    try {
+      const response = await fetch("/api/users/order", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: nonSuperAdminUsers.map((item) => item.id),
+        }),
+      });
+
+      const data = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        throw new Error(data.message ?? "保存排序失败");
+      }
+
+      setUsers(
+        nextUsers.map((item) => {
+          if (item.role === "SUPER_ADMIN") return item;
+
+          const nonSuperIndex = nonSuperAdminUsers.findIndex(
+            (candidate) => candidate.id === item.id,
+          );
+
+          return {
+            ...item,
+            sort: (nonSuperIndex + 1) * 10,
+          };
+        }),
+      );
+      Toast.toast.success(data.message ?? "用户排序已更新");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "保存排序失败，请稍后重试";
+      Toast.toast.danger(message);
+      await loadData();
+    } finally {
+      setOrdering(false);
+    }
+  }
+
+  async function onDropRow(targetId: string) {
+    if (!draggingId || draggingId === targetId) return;
+
+    const next = moveUser(users, draggingId, targetId);
+    setDraggingId(null);
+
+    if (next === users) {
+      return;
+    }
+
+    setUsers(next);
+    await persistOrder(next);
+  }
+
   const activeCount = useMemo(
     () => users.filter((item) => item.status === "ACTIVE").length,
     [users],
@@ -385,9 +465,10 @@ export default function UsersPage() {
         </Card.Header>
         <Card.Content>
           <div className="mt-3 overflow-x-auto">
-            <table className="min-w-full border-collapse text-sm">
+              <table className="min-w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-wide text-zinc-500">
+                  <th className="py-2 pr-4">拖动</th>
                   <th className="py-2 pr-4">用户名</th>
                   <th className="py-2 pr-4">角色</th>
                   <th className="py-2 pr-4">用户管理权限</th>
@@ -399,13 +480,35 @@ export default function UsersPage() {
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td className="py-10 text-center text-zinc-500" colSpan={6}>
+                    <td className="py-10 text-center text-zinc-500" colSpan={7}>
                       暂无用户
                     </td>
                   </tr>
                 ) : (
                   users.map((item) => (
-                    <tr key={item.id} className="border-b border-zinc-100">
+                    <tr
+                      key={item.id}
+                      draggable={canDragUser(item) && !ordering}
+                      onDragStart={() => {
+                        if (!canDragUser(item) || ordering) return;
+                        setDraggingId(item.id);
+                      }}
+                      onDragEnd={() => setDraggingId(null)}
+                      onDragOver={(event) => {
+                        if (!canDragUser(item) || ordering || !draggingId) return;
+                        event.preventDefault();
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        void onDropRow(item.id);
+                      }}
+                      className={`border-b border-zinc-100 transition-colors hover:bg-zinc-50/80 ${
+                        draggingId === item.id ? "opacity-50" : ""
+                      }`}
+                    >
+                      <td className="py-2 pr-4 text-zinc-400">
+                        {canDragUser(item) ? <span className="select-none">⋮⋮</span> : "-"}
+                      </td>
                       <td className="py-2 pr-4">{item.username}</td>
                       <td className="py-2 pr-4">
                         <Chip size="sm" variant="soft" color="default">
@@ -434,7 +537,8 @@ export default function UsersPage() {
                           className="border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
                           onClick={() => openEditModal(item)}
                           isDisabled={
-                            currentUser?.sub === item.id
+                            ordering
+                            || currentUser?.sub === item.id
                             || (!isSuperAdmin && item.role === "SUPER_ADMIN")
                           }
                         >
@@ -446,6 +550,9 @@ export default function UsersPage() {
                 )}
               </tbody>
             </table>
+            <p className="mt-3 text-xs text-zinc-500">
+              超级管理员固定置顶；其余账号可拖动排序，拖动后会自动保存。
+            </p>
           </div>
         </Card.Content>
       </Card>

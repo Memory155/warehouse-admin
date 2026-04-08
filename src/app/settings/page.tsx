@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Card, Chip, Spinner, Toast } from "@heroui/react";
+import Image, { ImageLoaderProps } from "next/image";
 import { useRouter } from "next/navigation";
 
 type MeUser = {
@@ -60,6 +61,10 @@ const initialPasswordForm: PasswordForm = {
   newPassword: "",
   confirmPassword: "",
 };
+
+function avatarImageLoader({ src }: ImageLoaderProps) {
+  return src;
+}
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -287,9 +292,13 @@ export default function SettingsPage() {
         <Card.Content>
           <div className="mt-3 flex items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
             {previewAvatar ? (
-              <img
+              <Image
                 src={previewAvatar}
                 alt="用户头像"
+                loader={avatarImageLoader}
+                unoptimized
+                width={56}
+                height={56}
                 className="h-14 w-14 rounded-full border border-zinc-200 object-cover"
               />
             ) : (
@@ -370,11 +379,17 @@ export default function SettingsPage() {
                       }
                       onClick={() => setAvatarUrl(item.value)}
                     >
-                      <img
-                        src={item.value}
-                        alt={`头像预设 ${item.label}`}
-                        className="h-14 w-full rounded-lg object-cover"
-                      />
+                      <div className="relative h-14 w-full overflow-hidden rounded-lg">
+                        <Image
+                          src={item.value}
+                          alt={`头像预设 ${item.label}`}
+                          loader={avatarImageLoader}
+                          unoptimized
+                          fill
+                          sizes="(max-width: 640px) 33vw, 96px"
+                          className="object-cover"
+                        />
+                      </div>
                     </button>
                   );
                 })}

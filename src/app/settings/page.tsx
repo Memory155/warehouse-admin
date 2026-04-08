@@ -123,13 +123,24 @@ export default function SettingsPage() {
 
   async function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!user) {
+      Toast.toast.danger("未获取到用户信息");
+      return;
+    }
+
+    if (!hasProfileChanges) {
+      Toast.toast.warning("资料暂无变更");
+      return;
+    }
+
     setSavingProfile(true);
 
     try {
       const response = await fetch("/api/users/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, avatarUrl }),
+        body: JSON.stringify({ username: username.trim(), avatarUrl: avatarUrl.trim() }),
       });
       const data = (await response.json()) as { message?: string; user?: MeUser };
 
@@ -140,15 +151,9 @@ export default function SettingsPage() {
 
       const updatedUser = data.user;
       if (updatedUser) {
-        setUser((prev) =>
-          prev
-            ? {
-                ...prev,
-                username: updatedUser.username,
-                avatarUrl: updatedUser.avatarUrl,
-              }
-            : prev,
-        );
+        setUser(updatedUser);
+        setUsername(updatedUser.username);
+        setAvatarUrl(updatedUser.avatarUrl ?? "");
 
         window.dispatchEvent(
           new CustomEvent("user-profile-updated", {
@@ -243,6 +248,17 @@ export default function SettingsPage() {
     return createAvatarPresets(avatarBatch);
   }, [avatarBatch]);
 
+  const hasProfileChanges = useMemo(() => {
+    if (!user) return false;
+
+    const normalizedUsername = username.trim();
+    const normalizedAvatarUrl = avatarUrl.trim();
+
+    return (
+      normalizedUsername !== user.username || normalizedAvatarUrl !== (user.avatarUrl ?? "")
+    );
+  }, [avatarUrl, user, username]);
+
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center gap-2 text-sm text-zinc-600">
@@ -322,7 +338,7 @@ export default function SettingsPage() {
 
             <div>
               <div className="mb-2 flex items-center justify-between">
-                <p className="text-sm text-zinc-600">快速选择头像（默认两行，每批 12 个）</p>
+                <p className="text-sm text-zinc-600">快速选择头像</p>
                 <div className="flex gap-2">
                   <Button
                     type="button"

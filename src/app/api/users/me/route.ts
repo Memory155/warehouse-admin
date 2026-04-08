@@ -69,6 +69,8 @@ export async function PATCH(request: Request) {
         avatarUrl: true,
         role: true,
         canManageUsers: true,
+        createdAt: true,
+        updatedAt: true,
       },
     });
 

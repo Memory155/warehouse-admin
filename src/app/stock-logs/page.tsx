@@ -206,7 +206,7 @@ export default function StockLogsPage() {
     <div className="w-full space-y-4">
         <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
           <Card.Header>
-          <h1 className="text-2xl font-semibold">库存记录</h1>
+          <h1 className="text-xl font-semibold sm:text-2xl">库存记录</h1>
           <p className="mt-1 text-sm text-zinc-600">
             最近记录 {items.length} 条，变动后库存为 0 的记录 {lowOrOutCount} 条
           </p>
@@ -224,8 +224,8 @@ export default function StockLogsPage() {
             </p>
           ) : null}
 
-          <form className="mt-4 grid gap-3 sm:grid-cols-4" onSubmit={handleSubmit}>
-            <div className="sm:col-span-2">
+          <form className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4" onSubmit={handleSubmit}>
+            <div className="md:col-span-2">
               <AppSelect
                 value={form.productId}
                 onChange={(value) =>
@@ -292,7 +292,7 @@ export default function StockLogsPage() {
             )}
 
             <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 sm:col-span-3"
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 md:col-span-2 xl:col-span-3"
               value={form.remark}
               onChange={(event) =>
                 setForm((prev) => ({ ...prev, remark: event.target.value }))
@@ -302,7 +302,7 @@ export default function StockLogsPage() {
 
             <Button
               type="submit"
-              className="bg-zinc-900 text-white hover:bg-zinc-700"
+              className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
               isDisabled={saving}
             >
               {saving ? "提交中..." : "提交变动"}
@@ -317,7 +317,7 @@ export default function StockLogsPage() {
           <h2 className="text-lg font-medium">变动记录筛选</h2>
           </Card.Header>
           <Card.Content>
-          <div className="mt-3 grid gap-3 sm:grid-cols-5">
+          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-5">
             <AppSelect
               value={filterProductId || "__all__"}
               onChange={(value) =>
@@ -362,7 +362,7 @@ export default function StockLogsPage() {
             />
             <Button
               type="button"
-              className="bg-zinc-900 text-white hover:bg-zinc-700"
+              className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
               onClick={() => void loadLogs()}
             >
               应用筛选
@@ -372,7 +372,7 @@ export default function StockLogsPage() {
         </Card>
 
         <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
-          <Card.Header className="flex items-center justify-between">
+          <Card.Header className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-medium">库存变动列表</h2>
           <Chip size="sm" variant="soft" color="default">
             最近 100 条
@@ -386,7 +386,7 @@ export default function StockLogsPage() {
             </div>
           ) : (
             <div className="mt-3 overflow-x-auto">
-              <table className="min-w-full border-collapse text-sm">
+              <table className="w-full min-w-[920px] border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-wide text-zinc-500">
                     <th className="py-2 pr-4">时间</th>

@@ -358,7 +358,7 @@ export default function UsersPage() {
     <div className="w-full space-y-4">
       <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
         <Card.Header>
-          <h1 className="text-2xl font-semibold">用户管理</h1>
+          <h1 className="text-xl font-semibold sm:text-2xl">用户管理</h1>
           <p className="mt-1 text-sm text-zinc-600">
             共 {users.length} 个账号，启用中 {activeCount} 个
           </p>
@@ -371,7 +371,7 @@ export default function UsersPage() {
         </Card.Header>
         <Card.Content>
           <form
-            className="mt-3 grid gap-3 sm:grid-cols-2"
+            className="mt-3 grid gap-3 md:grid-cols-2"
             onSubmit={handleCreateUser}
             autoComplete="off"
           >
@@ -430,7 +430,7 @@ export default function UsersPage() {
             />
 
             {isSuperAdmin ? (
-              <label className="sm:col-span-2 flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+              <label className="flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 md:col-span-2">
                 <input
                   type="checkbox"
                   checked={createForm.role === "SUPER_ADMIN" ? true : createForm.canManageUsers}
@@ -446,10 +446,10 @@ export default function UsersPage() {
               </label>
             ) : null}
 
-            <div className="sm:col-span-2">
+            <div className="md:col-span-2">
               <Button
                 type="submit"
-                className="bg-zinc-900 text-white hover:bg-zinc-700"
+                className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
                 isDisabled={creating}
               >
                 {creating ? "创建中..." : "创建用户"}
@@ -465,7 +465,7 @@ export default function UsersPage() {
         </Card.Header>
         <Card.Content>
           <div className="mt-3 overflow-x-auto">
-              <table className="min-w-full border-collapse text-sm">
+              <table className="w-full min-w-[920px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-wide text-zinc-500">
                   <th className="py-2 pr-4">拖动</th>
@@ -559,9 +559,9 @@ export default function UsersPage() {
 
       {editOpen && editForm ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/35 p-4">
-          <div className="w-full max-w-lg rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
             <h3 className="text-lg font-semibold">编辑用户</h3>
-            <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={handleUpdateUser}>
+            <form className="mt-4 grid gap-3 md:grid-cols-2" onSubmit={handleUpdateUser}>
               <input
                 className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600"
                 placeholder="用户名"
@@ -636,7 +636,7 @@ export default function UsersPage() {
               />
 
               {isSuperAdmin ? (
-                <label className="sm:col-span-2 flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+                <label className="flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 md:col-span-2">
                   <input
                     type="checkbox"
                     checked={editForm.role === "SUPER_ADMIN" ? true : editForm.canManageUsers}
@@ -656,10 +656,10 @@ export default function UsersPage() {
                 </label>
               ) : null}
 
-              <div className="sm:col-span-2 flex justify-end gap-2">
+              <div className="flex flex-col-reverse justify-end gap-2 md:col-span-2 sm:flex-row">
                 <Button
                   type="button"
-                  className="border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
+                  className="w-full border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto"
                   onPress={closeEditModal}
                   isDisabled={editing}
                 >
@@ -667,7 +667,7 @@ export default function UsersPage() {
                 </Button>
                 <Button
                   type="submit"
-                  className="bg-zinc-900 text-white hover:bg-zinc-700"
+                  className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
                   isDisabled={editing}
                 >
                   {editing ? "保存中..." : "保存"}

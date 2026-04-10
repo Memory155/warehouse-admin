@@ -104,7 +104,7 @@ export default function DashboardPage() {
         <Card className="border border-zinc-200/70 shadow-sm">
           <Card.Header>
           <div>
-            <h1 className="text-2xl font-semibold">首页</h1>
+            <h1 className="text-xl font-semibold sm:text-2xl">首页</h1>
             <p className="mt-1 text-sm text-zinc-600">
               你好，{user?.username ?? "-"}（{user?.role ?? "-"}）
             </p>
@@ -171,7 +171,7 @@ export default function DashboardPage() {
         ) : null}
 
         <Card className="border border-zinc-200/70 shadow-sm">
-          <Card.Header className="flex items-center justify-between">
+          <Card.Header className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-medium">最近库存变动</h2>
           <Chip size="sm" variant="soft" color="default">
             最近 10 条
@@ -182,7 +182,7 @@ export default function DashboardPage() {
             <p className="mt-3 text-sm text-zinc-600">暂无记录</p>
           ) : (
             <div className="mt-3 overflow-x-auto">
-              <table className="min-w-full border-collapse text-sm">
+              <table className="w-full min-w-[760px] border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-zinc-200 text-left text-zinc-600">
                     <th className="py-2 pr-4">时间</th>

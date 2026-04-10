@@ -19,6 +19,7 @@ type ManagedUser = {
   id: string;
   username: string;
   avatarUrl: string | null;
+  sort: number;
   role: Role;
   canManageUsers: boolean;
   status: UserStatus;
@@ -74,6 +75,8 @@ export default function UsersPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editing, setEditing] = useState(false);
   const [editForm, setEditForm] = useState<EditUserForm | null>(null);
+  const [draggingId, setDraggingId] = useState<string | null>(null);
+  const [ordering, setOrdering] = useState(false);
 
   const isSuperAdmin = currentUser?.role === "SUPER_ADMIN";
   const roleOptions = isSuperAdmin
@@ -260,6 +263,83 @@ export default function UsersPage() {
     }
   }
 
+  function canDragUser(item: ManagedUser) {
+    return item.role !== "SUPER_ADMIN";
+  }
+
+  function moveUser(list: ManagedUser[], fromId: string, toId: string) {
+    const fromIndex = list.findIndex((item) => item.id === fromId);
+    const toIndex = list.findIndex((item) => item.id === toId);
+    if (fromIndex < 0 || toIndex < 0 || fromIndex === toIndex) return list;
+
+    const fromUser = list[fromIndex];
+    const toUser = list[toIndex];
+    if (!fromUser || !toUser || !canDragUser(fromUser) || !canDragUser(toUser)) {
+      return list;
+    }
+
+    const next = [...list];
+    const [moved] = next.splice(fromIndex, 1);
+    next.splice(toIndex, 0, moved);
+    return next;
+  }
+
+  async function persistOrder(nextUsers: ManagedUser[]) {
+    const nonSuperAdminUsers = nextUsers.filter((item) => item.role !== "SUPER_ADMIN");
+    setOrdering(true);
+
+    try {
+      const response = await fetch("/api/users/order", {
+        method: "PATCH",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          ids: nonSuperAdminUsers.map((item) => item.id),
+        }),
+      });
+
+      const data = (await response.json()) as { message?: string };
+      if (!response.ok) {
+        throw new Error(data.message ?? "保存排序失败");
+      }
+
+      setUsers(
+        nextUsers.map((item) => {
+          if (item.role === "SUPER_ADMIN") return item;
+
+          const nonSuperIndex = nonSuperAdminUsers.findIndex(
+            (candidate) => candidate.id === item.id,
+          );
+
+          return {
+            ...item,
+            sort: (nonSuperIndex + 1) * 10,
+          };
+        }),
+      );
+      Toast.toast.success(data.message ?? "用户排序已更新");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "保存排序失败，请稍后重试";
+      Toast.toast.danger(message);
+      await loadData();
+    } finally {
+      setOrdering(false);
+    }
+  }
+
+  async function onDropRow(targetId: string) {
+    if (!draggingId || draggingId === targetId) return;
+
+    const next = moveUser(users, draggingId, targetId);
+    setDraggingId(null);
+
+    if (next === users) {
+      return;
+    }
+
+    setUsers(next);
+    await persistOrder(next);
+  }
+
   const activeCount = useMemo(
     () => users.filter((item) => item.status === "ACTIVE").length,
     [users],
@@ -278,7 +358,7 @@ export default function UsersPage() {
     <div className="w-full space-y-4">
       <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
         <Card.Header>
-          <h1 className="text-2xl font-semibold">用户管理</h1>
+          <h1 className="text-xl font-semibold sm:text-2xl">用户管理</h1>
           <p className="mt-1 text-sm text-zinc-600">
             共 {users.length} 个账号，启用中 {activeCount} 个
           </p>
@@ -291,7 +371,7 @@ export default function UsersPage() {
         </Card.Header>
         <Card.Content>
           <form
-            className="mt-3 grid gap-3 sm:grid-cols-2"
+            className="mt-3 grid gap-3 md:grid-cols-2"
             onSubmit={handleCreateUser}
             autoComplete="off"
           >
@@ -350,7 +430,7 @@ export default function UsersPage() {
             />
 
             {isSuperAdmin ? (
-              <label className="sm:col-span-2 flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+              <label className="flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 md:col-span-2">
                 <input
                   type="checkbox"
                   checked={createForm.role === "SUPER_ADMIN" ? true : createForm.canManageUsers}
@@ -366,10 +446,10 @@ export default function UsersPage() {
               </label>
             ) : null}
 
-            <div className="sm:col-span-2">
+            <div className="md:col-span-2">
               <Button
                 type="submit"
-                className="bg-zinc-900 text-white hover:bg-zinc-700"
+                className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
                 isDisabled={creating}
               >
                 {creating ? "创建中..." : "创建用户"}
@@ -385,9 +465,10 @@ export default function UsersPage() {
         </Card.Header>
         <Card.Content>
           <div className="mt-3 overflow-x-auto">
-            <table className="min-w-full border-collapse text-sm">
+              <table className="w-full min-w-[920px] border-collapse text-sm">
               <thead>
                 <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-wide text-zinc-500">
+                  <th className="py-2 pr-4">拖动</th>
                   <th className="py-2 pr-4">用户名</th>
                   <th className="py-2 pr-4">角色</th>
                   <th className="py-2 pr-4">用户管理权限</th>
@@ -399,13 +480,35 @@ export default function UsersPage() {
               <tbody>
                 {users.length === 0 ? (
                   <tr>
-                    <td className="py-10 text-center text-zinc-500" colSpan={6}>
+                    <td className="py-10 text-center text-zinc-500" colSpan={7}>
                       暂无用户
                     </td>
                   </tr>
                 ) : (
                   users.map((item) => (
-                    <tr key={item.id} className="border-b border-zinc-100">
+                    <tr
+                      key={item.id}
+                      draggable={canDragUser(item) && !ordering}
+                      onDragStart={() => {
+                        if (!canDragUser(item) || ordering) return;
+                        setDraggingId(item.id);
+                      }}
+                      onDragEnd={() => setDraggingId(null)}
+                      onDragOver={(event) => {
+                        if (!canDragUser(item) || ordering || !draggingId) return;
+                        event.preventDefault();
+                      }}
+                      onDrop={(event) => {
+                        event.preventDefault();
+                        void onDropRow(item.id);
+                      }}
+                      className={`border-b border-zinc-100 transition-colors hover:bg-zinc-50/80 ${
+                        draggingId === item.id ? "opacity-50" : ""
+                      }`}
+                    >
+                      <td className="py-2 pr-4 text-zinc-400">
+                        {canDragUser(item) ? <span className="select-none">⋮⋮</span> : "-"}
+                      </td>
                       <td className="py-2 pr-4">{item.username}</td>
                       <td className="py-2 pr-4">
                         <Chip size="sm" variant="soft" color="default">
@@ -434,7 +537,8 @@ export default function UsersPage() {
                           className="border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
                           onClick={() => openEditModal(item)}
                           isDisabled={
-                            currentUser?.sub === item.id
+                            ordering
+                            || currentUser?.sub === item.id
                             || (!isSuperAdmin && item.role === "SUPER_ADMIN")
                           }
                         >
@@ -446,15 +550,18 @@ export default function UsersPage() {
                 )}
               </tbody>
             </table>
+            <p className="mt-3 text-xs text-zinc-500">
+              超级管理员固定置顶；其余账号可拖动排序，拖动后会自动保存。
+            </p>
           </div>
         </Card.Content>
       </Card>
 
       {editOpen && editForm ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/35 p-4">
-          <div className="w-full max-w-lg rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-lg overflow-y-auto rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
             <h3 className="text-lg font-semibold">编辑用户</h3>
-            <form className="mt-4 grid gap-3 sm:grid-cols-2" onSubmit={handleUpdateUser}>
+            <form className="mt-4 grid gap-3 md:grid-cols-2" onSubmit={handleUpdateUser}>
               <input
                 className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600"
                 placeholder="用户名"
@@ -529,7 +636,7 @@ export default function UsersPage() {
               />
 
               {isSuperAdmin ? (
-                <label className="sm:col-span-2 flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700">
+                <label className="flex items-center gap-2 rounded-md border border-zinc-200 bg-zinc-50 px-3 py-2 text-sm text-zinc-700 md:col-span-2">
                   <input
                     type="checkbox"
                     checked={editForm.role === "SUPER_ADMIN" ? true : editForm.canManageUsers}
@@ -549,10 +656,10 @@ export default function UsersPage() {
                 </label>
               ) : null}
 
-              <div className="sm:col-span-2 flex justify-end gap-2">
+              <div className="flex flex-col-reverse justify-end gap-2 md:col-span-2 sm:flex-row">
                 <Button
                   type="button"
-                  className="border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
+                  className="w-full border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto"
                   onPress={closeEditModal}
                   isDisabled={editing}
                 >
@@ -560,7 +667,7 @@ export default function UsersPage() {
                 </Button>
                 <Button
                   type="submit"
-                  className="bg-zinc-900 text-white hover:bg-zinc-700"
+                  className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
                   isDisabled={editing}
                 >
                   {editing ? "保存中..." : "保存"}

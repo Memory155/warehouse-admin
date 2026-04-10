@@ -250,7 +250,7 @@ export default function CategoriesPage() {
     <div className="w-full space-y-4">
         <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
           <Card.Header>
-          <h1 className="text-2xl font-semibold">分类管理</h1>
+          <h1 className="text-xl font-semibold sm:text-2xl">分类管理</h1>
           <p className="mt-1 text-sm text-zinc-600">
             总计 {items.length} 个分类，启用中 {activeCount} 个
           </p>
@@ -280,7 +280,7 @@ export default function CategoriesPage() {
             <div className="flex gap-2">
               <Button
                 type="submit"
-                className="bg-zinc-900 text-white hover:bg-zinc-700"
+                className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
                 isDisabled={!isAdmin || saving}
               >
                 {saving ? "保存中..." : "创建分类"}
@@ -303,7 +303,7 @@ export default function CategoriesPage() {
             </div>
           ) : (
             <div className="mt-3 overflow-x-auto">
-              <table className="min-w-full border-collapse text-sm">
+              <table className="w-full min-w-[760px] border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-wide text-zinc-500">
                     <th className="py-2 pr-4">拖动</th>
@@ -360,7 +360,7 @@ export default function CategoriesPage() {
                         {new Date(item.updatedAt).toLocaleString()}
                       </td>
                       <td className="py-2">
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                           <Button
                             type="button"
                             size="sm"
@@ -395,7 +395,7 @@ export default function CategoriesPage() {
 
         {editOpen ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/35 p-4">
-            <div className="w-full max-w-md rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
+            <div className="max-h-[calc(100vh-2rem)] w-full max-w-md overflow-y-auto rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
               <h3 className="text-lg font-semibold">编辑分类</h3>
               <form className="mt-4 space-y-3" onSubmit={submitEdit}>
                 <input
@@ -405,10 +405,10 @@ export default function CategoriesPage() {
                   onChange={(event) => setEditName(event.target.value)}
                   required
                 />
-                <div className="flex justify-end gap-2">
+                <div className="flex flex-col-reverse justify-end gap-2 sm:flex-row">
                   <Button
                     type="button"
-                    className="border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
+                    className="w-full border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto"
                     onPress={closeEditModal}
                     isDisabled={editSaving}
                   >
@@ -416,7 +416,7 @@ export default function CategoriesPage() {
                   </Button>
                   <Button
                     type="submit"
-                    className="bg-zinc-900 text-white hover:bg-zinc-700"
+                    className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
                     isDisabled={editSaving}
                   >
                     {editSaving ? "保存中..." : "保存"}
@@ -429,15 +429,15 @@ export default function CategoriesPage() {
 
         {disableTarget ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/35 p-4">
-            <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
+            <div className="max-h-[calc(100vh-2rem)] w-full max-w-sm overflow-y-auto rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
               <h3 className="text-lg font-semibold">确认停用分类</h3>
               <p className="mt-2 text-sm text-zinc-600">
                 确认停用分类「{disableTarget.name}」吗？停用后该分类不会在常规列表中显示。
               </p>
-              <div className="mt-5 flex justify-end gap-2">
+              <div className="mt-5 flex flex-col-reverse justify-end gap-2 sm:flex-row">
                 <Button
                   type="button"
-                  className="border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
+                  className="w-full border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto"
                   onPress={closeDisableModal}
                   isDisabled={disableSaving}
                 >
@@ -445,7 +445,7 @@ export default function CategoriesPage() {
                 </Button>
                 <Button
                   type="button"
-                  className="bg-zinc-900 text-white hover:bg-zinc-700"
+                  className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
                   onPress={confirmDisableCategory}
                   isDisabled={disableSaving}
                 >

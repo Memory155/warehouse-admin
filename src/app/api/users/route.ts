@@ -29,16 +29,35 @@ export async function GET() {
       id: true,
       username: true,
       avatarUrl: true,
+      sort: true,
       role: true,
       canManageUsers: true,
       status: true,
       createdAt: true,
       updatedAt: true,
     },
-    orderBy: [{ createdAt: "asc" }],
+    orderBy: [{ sort: "asc" }, { createdAt: "desc" }],
   });
 
-  return NextResponse.json({ items });
+  const sortedItems = items.sort((left, right) => {
+    const leftIsSuperAdmin = left.role === Role.SUPER_ADMIN;
+    const rightIsSuperAdmin = right.role === Role.SUPER_ADMIN;
+
+    if (leftIsSuperAdmin && !rightIsSuperAdmin) return -1;
+    if (!leftIsSuperAdmin && rightIsSuperAdmin) return 1;
+
+    if (leftIsSuperAdmin && rightIsSuperAdmin) {
+      return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+    }
+
+    if (left.sort !== right.sort) {
+      return left.sort - right.sort;
+    }
+
+    return new Date(right.createdAt).getTime() - new Date(left.createdAt).getTime();
+  });
+
+  return NextResponse.json({ items: sortedItems });
 }
 
 export async function POST(request: Request) {
@@ -63,6 +82,11 @@ export async function POST(request: Request) {
     }
 
     const passwordHash = await bcrypt.hash(body.password, 10);
+    const nextSortBase = await prisma.user.aggregate({
+      _max: { sort: true },
+      where: body.role === Role.SUPER_ADMIN ? { role: Role.SUPER_ADMIN } : { role: { not: Role.SUPER_ADMIN } },
+    });
+
     const created = await prisma.user.create({
       data: {
         username: body.username,
@@ -70,6 +94,7 @@ export async function POST(request: Request) {
         role: body.role,
         status: body.status,
         avatarUrl: body.avatarUrl && body.avatarUrl.length > 0 ? body.avatarUrl : null,
+        sort: body.role === Role.SUPER_ADMIN ? 0 : (nextSortBase._max.sort ?? 0) + 10,
         canManageUsers:
           body.role === Role.SUPER_ADMIN
             ? true
@@ -81,6 +106,7 @@ export async function POST(request: Request) {
         id: true,
         username: true,
         avatarUrl: true,
+        sort: true,
         role: true,
         canManageUsers: true,
         status: true,

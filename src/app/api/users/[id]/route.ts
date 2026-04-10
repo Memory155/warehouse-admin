@@ -9,6 +9,7 @@ import { prisma } from "@/lib/db";
 const updateUserSchema = z.object({
   username: z.string().trim().min(2, "用户名至少 2 位").max(32, "用户名最多 32 位").optional(),
   avatarUrl: z.union([z.string().trim().url("头像地址格式不正确"), z.literal("")]).optional(),
+  sort: z.number().int().min(0).max(999999).optional(),
   role: z.nativeEnum(Role).optional(),
   status: z.nativeEnum(UserStatus).optional(),
   canManageUsers: z.boolean().optional(),
@@ -54,6 +55,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       where: { id },
       select: {
         id: true,
+        sort: true,
         role: true,
         status: true,
         canManageUsers: true,
@@ -129,6 +131,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         : undefined,
       role: body.role,
       status: body.status,
+      sort: body.sort,
       canManageUsers: actorCanGrant
         ? (body.role === Role.SUPER_ADMIN
           ? true
@@ -143,6 +146,19 @@ export async function PATCH(request: Request, context: RouteContext) {
       data.canManageUsers = target.canManageUsers;
     }
 
+    if (body.role === Role.SUPER_ADMIN) {
+      data.sort = 0;
+    } else if (target.role === Role.SUPER_ADMIN && body.role) {
+      const nextSortBase = await prisma.user.aggregate({
+        _max: { sort: true },
+        where: {
+          role: { not: Role.SUPER_ADMIN },
+          id: { not: id },
+        },
+      });
+      data.sort = (nextSortBase._max.sort ?? 0) + 10;
+    }
+
     const updated = await prisma.user.update({
       where: { id },
       data,
@@ -150,6 +166,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         id: true,
         username: true,
         avatarUrl: true,
+        sort: true,
         role: true,
         canManageUsers: true,
         status: true,

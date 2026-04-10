@@ -2,6 +2,7 @@
 
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Card, Chip, Spinner, Toast } from "@heroui/react";
+import Image, { ImageLoaderProps } from "next/image";
 import { useRouter } from "next/navigation";
 
 type MeUser = {
@@ -60,6 +61,10 @@ const initialPasswordForm: PasswordForm = {
   newPassword: "",
   confirmPassword: "",
 };
+
+function avatarImageLoader({ src }: ImageLoaderProps) {
+  return src;
+}
 
 export default function SettingsPage() {
   const router = useRouter();
@@ -123,13 +128,24 @@ export default function SettingsPage() {
 
   async function handleProfileSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+
+    if (!user) {
+      Toast.toast.danger("未获取到用户信息");
+      return;
+    }
+
+    if (!hasProfileChanges) {
+      Toast.toast.warning("资料暂无变更");
+      return;
+    }
+
     setSavingProfile(true);
 
     try {
       const response = await fetch("/api/users/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ username, avatarUrl }),
+        body: JSON.stringify({ username: username.trim(), avatarUrl: avatarUrl.trim() }),
       });
       const data = (await response.json()) as { message?: string; user?: MeUser };
 
@@ -140,15 +156,9 @@ export default function SettingsPage() {
 
       const updatedUser = data.user;
       if (updatedUser) {
-        setUser((prev) =>
-          prev
-            ? {
-                ...prev,
-                username: updatedUser.username,
-                avatarUrl: updatedUser.avatarUrl,
-              }
-            : prev,
-        );
+        setUser(updatedUser);
+        setUsername(updatedUser.username);
+        setAvatarUrl(updatedUser.avatarUrl ?? "");
 
         window.dispatchEvent(
           new CustomEvent("user-profile-updated", {
@@ -243,6 +253,17 @@ export default function SettingsPage() {
     return createAvatarPresets(avatarBatch);
   }, [avatarBatch]);
 
+  const hasProfileChanges = useMemo(() => {
+    if (!user) return false;
+
+    const normalizedUsername = username.trim();
+    const normalizedAvatarUrl = avatarUrl.trim();
+
+    return (
+      normalizedUsername !== user.username || normalizedAvatarUrl !== (user.avatarUrl ?? "")
+    );
+  }, [avatarUrl, user, username]);
+
   if (loading) {
     return (
       <div className="flex min-h-[40vh] items-center justify-center gap-2 text-sm text-zinc-600">
@@ -256,24 +277,28 @@ export default function SettingsPage() {
     <div className="w-full space-y-4">
       <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
         <Card.Header>
-          <h1 className="text-2xl font-semibold">设置</h1>
+          <h1 className="text-xl font-semibold sm:text-2xl">设置</h1>
           <p className="mt-1 text-sm text-zinc-600">管理你的用户名、头像和登录密码</p>
         </Card.Header>
       </Card>
 
       <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
-        <Card.Header className="flex items-center justify-between">
+        <Card.Header className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-medium">当前账号</h2>
           <Chip size="sm" variant="soft" color="default">
             {user?.role ?? "-"}
           </Chip>
         </Card.Header>
         <Card.Content>
-          <div className="mt-3 flex items-center gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+          <div className="mt-3 flex flex-col items-start gap-3 rounded-xl border border-zinc-200 bg-zinc-50 p-4 sm:flex-row sm:items-center">
             {previewAvatar ? (
-              <img
+              <Image
                 src={previewAvatar}
                 alt="用户头像"
+                loader={avatarImageLoader}
+                unoptimized
+                width={56}
+                height={56}
                 className="h-14 w-14 rounded-full border border-zinc-200 object-cover"
               />
             ) : (
@@ -321,19 +346,19 @@ export default function SettingsPage() {
             </div>
 
             <div>
-              <div className="mb-2 flex items-center justify-between">
-                <p className="text-sm text-zinc-600">快速选择头像（默认两行，每批 12 个）</p>
-                <div className="flex gap-2">
+              <div className="mb-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm text-zinc-600">快速选择头像</p>
+                <div className="flex flex-col gap-2 sm:flex-row">
                   <Button
                     type="button"
-                    className="border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
+                    className="w-full border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto"
                     onPress={() => setAvatarBatch((prev) => prev + 1)}
                   >
                     换一批
                   </Button>
                   <Button
                     type="button"
-                    className="border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
+                    className="w-full border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto"
                     onPress={() => setAvatarUrl("")}
                   >
                     清空头像
@@ -354,28 +379,34 @@ export default function SettingsPage() {
                       }
                       onClick={() => setAvatarUrl(item.value)}
                     >
-                      <img
-                        src={item.value}
-                        alt={`头像预设 ${item.label}`}
-                        className="h-14 w-full rounded-lg object-cover"
-                      />
+                      <div className="relative h-14 w-full overflow-hidden rounded-lg">
+                        <Image
+                          src={item.value}
+                          alt={`头像预设 ${item.label}`}
+                          loader={avatarImageLoader}
+                          unoptimized
+                          fill
+                          sizes="(max-width: 640px) 33vw, 96px"
+                          className="object-cover"
+                        />
+                      </div>
                     </button>
                   );
                 })}
               </div>
             </div>
 
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <Button
                 type="submit"
-                className="bg-zinc-900 text-white hover:bg-zinc-700"
+                className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
                 isDisabled={savingProfile}
               >
                 {savingProfile ? "保存中..." : "保存资料"}
               </Button>
               <Button
                 type="button"
-                className="border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
+                className="w-full border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto"
                 onClick={() => {
                   setUsername(user?.username ?? "");
                   setAvatarUrl(user?.avatarUrl ?? "");
@@ -393,7 +424,7 @@ export default function SettingsPage() {
           <h2 className="text-lg font-medium">修改密码</h2>
         </Card.Header>
         <Card.Content>
-          <form className="mt-3 grid gap-3 sm:grid-cols-3" onSubmit={handlePasswordSubmit}>
+          <form className="mt-3 grid gap-3 md:grid-cols-3" onSubmit={handlePasswordSubmit}>
             <div className="relative">
               <input
                 className="w-full rounded-md border border-zinc-300 bg-white px-3 py-2 pr-14 text-sm outline-none focus:border-zinc-600"
@@ -481,10 +512,10 @@ export default function SettingsPage() {
                 </button>
               ) : null}
             </div>
-            <div className="sm:col-span-3">
+            <div className="md:col-span-3">
               <Button
                 type="submit"
-                className="bg-zinc-900 text-white hover:bg-zinc-700"
+                className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
                 isDisabled={savingPassword}
               >
                 {savingPassword ? (
@@ -503,15 +534,15 @@ export default function SettingsPage() {
 
       {passwordConfirmOpen ? (
         <div className="fixed inset-0 z-[210] flex items-center justify-center bg-zinc-900/35 p-4">
-          <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-sm overflow-y-auto rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
             <h3 className="text-base font-semibold text-zinc-900">确认修改密码</h3>
             <p className="mt-2 text-sm text-zinc-600">
               修改成功后需要重新登录，确认现在提交修改吗？
             </p>
-            <div className="mt-4 flex justify-end gap-2">
+            <div className="mt-4 flex flex-col-reverse justify-end gap-2 sm:flex-row">
               <Button
                 type="button"
-                className="border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
+                className="w-full border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto"
                 isDisabled={savingPassword}
                 onPress={cancelPasswordConfirm}
               >
@@ -519,7 +550,7 @@ export default function SettingsPage() {
               </Button>
               <Button
                 type="button"
-                className="bg-zinc-900 text-white hover:bg-zinc-700"
+                className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
                 isDisabled={savingPassword}
                 onPress={() => void confirmPasswordUpdate()}
               >

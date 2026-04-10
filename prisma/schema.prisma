@@ -29,6 +29,7 @@ model User {
   id           String      @id @default(cuid())
   username     String      @unique
   avatarUrl    String?
+  sort         Int         @default(0)
   passwordHash String
   role         Role        @default(USER)
   canManageUsers Boolean   @default(false)

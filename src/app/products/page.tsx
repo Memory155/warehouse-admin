@@ -258,7 +258,7 @@ export default function ProductsPage() {
     <div className="w-full space-y-4">
         <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
           <Card.Header>
-          <h1 className="text-2xl font-semibold">商品管理</h1>
+          <h1 className="text-xl font-semibold sm:text-2xl">商品管理</h1>
           <p className="mt-1 text-sm text-zinc-600">
             共 {items.length} 个商品，低库存 {lowStockCount} 个，缺货 {outCount} 个
           </p>
@@ -270,7 +270,7 @@ export default function ProductsPage() {
           <h2 className="text-lg font-medium">筛选</h2>
           </Card.Header>
           <Card.Content>
-          <div className="mt-3 grid gap-3 sm:grid-cols-4">
+          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <input
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600"
               placeholder="搜索商品名称"
@@ -315,7 +315,7 @@ export default function ProductsPage() {
           <div className="mt-3">
             <Button
               type="button"
-              className="bg-zinc-900 text-white hover:bg-zinc-700"
+              className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
               onClick={() => void loadProducts()}
             >
               应用筛选
@@ -335,9 +335,9 @@ export default function ProductsPage() {
             </p>
           ) : null}
 
-          <form className="mt-4 grid gap-3 sm:grid-cols-4" onSubmit={handleCreateSubmit}>
+          <form className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4" onSubmit={handleCreateSubmit}>
             <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 sm:col-span-2 disabled:bg-zinc-100"
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 md:col-span-2 disabled:bg-zinc-100"
               placeholder="商品名称"
               value={form.name}
               onChange={(event) =>
@@ -407,7 +407,7 @@ export default function ProductsPage() {
               required
             />
             <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100 sm:col-span-2"
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100 md:col-span-2"
               placeholder="存放位置（可选）"
               value={form.location}
               onChange={(event) =>
@@ -416,7 +416,7 @@ export default function ProductsPage() {
               disabled={!isAdmin || saving}
             />
             <textarea
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100 sm:col-span-4"
+              className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100 md:col-span-2 xl:col-span-4"
               placeholder="备注（可选）"
               rows={3}
               value={form.remark}
@@ -425,10 +425,10 @@ export default function ProductsPage() {
               }
               disabled={!isAdmin || saving}
             />
-            <div className="flex gap-2 sm:col-span-4">
+            <div className="flex flex-col gap-2 md:col-span-2 xl:col-span-4 sm:flex-row">
               <Button
                 type="submit"
-                className="bg-zinc-900 text-white hover:bg-zinc-700"
+                className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
                 isDisabled={!isAdmin || saving}
               >
                 {saving ? "保存中..." : "创建商品"}
@@ -450,7 +450,7 @@ export default function ProductsPage() {
             </div>
           ) : (
             <div className="mt-3 overflow-x-auto">
-              <table className="min-w-full border-collapse text-sm">
+              <table className="w-full min-w-[920px] border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-wide text-zinc-500">
                     <th className="py-2 pr-4">商品</th>
@@ -509,7 +509,7 @@ export default function ProductsPage() {
                         {new Date(item.updatedAt).toLocaleString()}
                       </td>
                       <td className="py-2">
-                        <div className="flex gap-2">
+                        <div className="flex flex-wrap gap-2">
                           <Button
                             type="button"
                             size="sm"
@@ -544,11 +544,11 @@ export default function ProductsPage() {
 
         {editOpen ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/35 p-4">
-            <div className="w-full max-w-3xl rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
+            <div className="max-h-[calc(100vh-2rem)] w-full max-w-3xl overflow-y-auto rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
               <h3 className="text-lg font-semibold">编辑商品</h3>
-              <form className="mt-4 grid gap-3 sm:grid-cols-4" onSubmit={submitEdit}>
+              <form className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4" onSubmit={submitEdit}>
                 <input
-                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 sm:col-span-2"
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 md:col-span-2"
                   placeholder="商品名称"
                   value={editForm.name}
                   onChange={(event) =>
@@ -612,7 +612,7 @@ export default function ProductsPage() {
                   required
                 />
                 <input
-                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 sm:col-span-2"
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 md:col-span-2"
                   placeholder="存放位置（可选）"
                   value={editForm.location}
                   onChange={(event) =>
@@ -620,7 +620,7 @@ export default function ProductsPage() {
                   }
                 />
                 <textarea
-                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 sm:col-span-4"
+                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 md:col-span-2 xl:col-span-4"
                   placeholder="备注（可选）"
                   rows={3}
                   value={editForm.remark}
@@ -628,10 +628,10 @@ export default function ProductsPage() {
                     setEditForm((prev) => ({ ...prev, remark: event.target.value }))
                   }
                 />
-                <div className="flex justify-end gap-2 sm:col-span-4">
+                <div className="flex flex-col-reverse justify-end gap-2 md:col-span-2 xl:col-span-4 sm:flex-row">
                   <Button
                     type="button"
-                    className="border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
+                    className="w-full border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto"
                     onPress={closeEditModal}
                     isDisabled={editSaving}
                   >
@@ -639,7 +639,7 @@ export default function ProductsPage() {
                   </Button>
                   <Button
                     type="submit"
-                    className="bg-zinc-900 text-white hover:bg-zinc-700"
+                    className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
                     isDisabled={editSaving}
                   >
                     {editSaving ? "保存中..." : "保存"}
@@ -652,15 +652,15 @@ export default function ProductsPage() {
 
         {disableTarget ? (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/35 p-4">
-            <div className="w-full max-w-sm rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
+            <div className="max-h-[calc(100vh-2rem)] w-full max-w-sm overflow-y-auto rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
               <h3 className="text-lg font-semibold">确认停用商品</h3>
               <p className="mt-2 text-sm text-zinc-600">
                 确认停用商品「{disableTarget.name}」吗？停用后该商品不会在常规列表中显示。
               </p>
-              <div className="mt-5 flex justify-end gap-2">
+              <div className="mt-5 flex flex-col-reverse justify-end gap-2 sm:flex-row">
                 <Button
                   type="button"
-                  className="border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
+                  className="w-full border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto"
                   onPress={closeDisableModal}
                   isDisabled={disableSaving}
                 >
@@ -668,7 +668,7 @@ export default function ProductsPage() {
                 </Button>
                 <Button
                   type="button"
-                  className="bg-zinc-900 text-white hover:bg-zinc-700"
+                  className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
                   onPress={confirmDisableProduct}
                   isDisabled={disableSaving}
                 >

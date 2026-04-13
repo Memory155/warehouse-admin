@@ -115,6 +115,7 @@ type ProductImageFieldProps = {
   form: ProductForm;
   title: string;
   uploading: boolean;
+  onPreview: (imageUrl: string) => void;
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onClear: () => void;
 };
@@ -124,6 +125,7 @@ function ProductImageField({
   form,
   title,
   uploading,
+  onPreview,
   onChange,
   onClear,
 }: ProductImageFieldProps) {
@@ -134,15 +136,21 @@ function ProductImageField({
       <div className="mt-3 flex items-start gap-3">
         <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-white">
           {form.imageUrl ? (
-            <Image
-              src={form.imageUrl}
-              alt={`${title}预览`}
-              loader={imageLoader}
-              unoptimized
-              width={80}
-              height={80}
-              className="h-20 w-20 object-cover"
-            />
+            <button
+              type="button"
+              className="block h-20 w-20"
+              onClick={() => onPreview(form.imageUrl)}
+            >
+              <Image
+                src={form.imageUrl}
+                alt={`${title}预览`}
+                loader={imageLoader}
+                unoptimized
+                width={80}
+                height={80}
+                className="h-20 w-20 object-cover"
+              />
+            </button>
           ) : (
             <span className="text-xs text-zinc-400">暂无图片</span>
           )}
@@ -190,6 +198,7 @@ export default function ProductsPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editImageUploading, setEditImageUploading] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<ProductForm>(initialForm);
   const [disableTarget, setDisableTarget] = useState<Product | null>(null);
@@ -567,6 +576,7 @@ async function prepareImageForUpload(file: File) {
               form={form}
               disabled={!isAdmin || saving}
               uploading={createImageUploading}
+              onPreview={setPreviewImageUrl}
               onChange={handleCreateImageChange}
               onClear={() => setForm((prev) => clearImageFields(prev))}
             />
@@ -704,15 +714,21 @@ async function prepareImageForUpload(file: File) {
                           <div className="flex items-center gap-3">
                             <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">
                               {item.imageUrl ? (
-                                <Image
-                                  src={item.imageUrl}
-                                  alt={`${item.name}图片`}
-                                  loader={imageLoader}
-                                  unoptimized
-                                  width={48}
-                                  height={48}
-                                  className="h-12 w-12 object-cover"
-                                />
+                                <button
+                                  type="button"
+                                  className="block h-12 w-12"
+                                  onClick={() => setPreviewImageUrl(item.imageUrl!)}
+                                >
+                                  <Image
+                                    src={item.imageUrl}
+                                    alt={`${item.name}图片`}
+                                    loader={imageLoader}
+                                    unoptimized
+                                    width={48}
+                                    height={48}
+                                    className="h-12 w-12 object-cover"
+                                  />
+                                </button>
                               ) : (
                                 <span className="text-[10px] text-zinc-400">无图</span>
                               )}
@@ -810,6 +826,7 @@ async function prepareImageForUpload(file: File) {
                 form={editForm}
                 disabled={editSaving}
                 uploading={editImageUploading}
+                onPreview={setPreviewImageUrl}
                 onChange={handleEditImageChange}
                 onClear={() => setEditForm((prev) => clearImageFields(prev))}
               />
@@ -932,6 +949,33 @@ async function prepareImageForUpload(file: File) {
                 {disableSaving ? "处理中..." : "确认停用"}
               </Button>
             </div>
+          </div>
+        </div>
+        ) : null}
+
+      {previewImageUrl ? (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-zinc-950/80 p-4"
+          onClick={() => setPreviewImageUrl(null)}
+        >
+          <div className="relative max-h-[90vh] max-w-[90vw]">
+            <button
+              type="button"
+              className="absolute right-2 top-2 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900/70 text-sm text-white"
+              onClick={() => setPreviewImageUrl(null)}
+            >
+              ×
+            </button>
+            <Image
+              src={previewImageUrl}
+              alt="商品图片预览"
+              loader={imageLoader}
+              unoptimized
+              width={1200}
+              height={1200}
+              className="max-h-[90vh] w-auto max-w-[90vw] rounded-lg object-contain"
+              onClick={(event) => event.stopPropagation()}
+            />
           </div>
         </div>
       ) : null}

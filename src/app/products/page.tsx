@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import imageCompression from "browser-image-compression";
 import { Button, Card, Chip, Spinner, Toast } from "@heroui/react";
 import Image, { ImageLoaderProps } from "next/image";
 import AppSelect from "@/components/app-select";
@@ -76,6 +77,13 @@ const initialForm: ProductForm = {
 
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
 const allowedImageMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const compressionOptions = {
+  maxSizeMB: 2,
+  maxWidthOrHeight: 1600,
+  useWebWorker: true,
+  initialQuality: 0.82,
+  alwaysKeepResolution: false,
+};
 
 function toNumber(value: string | number) {
   return Number(value);
@@ -249,7 +257,7 @@ export default function ProductsPage() {
     }
   }
 
-  async function uploadProductImage(file: File) {
+async function uploadProductImage(file: File) {
     const formData = new FormData();
     formData.append("file", file);
 
@@ -272,25 +280,42 @@ export default function ProductsPage() {
       throw new Error(data?.message ?? `上传图片失败（${response.status}）`);
     }
 
-    return data.item;
+  return data.item;
+}
+
+async function prepareImageForUpload(file: File) {
+  if (!allowedImageMimeTypes.has(file.type)) {
+    throw new Error("仅支持 JPG、PNG、WebP 格式图片");
   }
+
+  if (file.size <= MAX_IMAGE_SIZE) {
+    return file;
+  }
+
+  Toast.toast.warning("图片较大，正在压缩...");
+
+  const compressed = await imageCompression(file, compressionOptions);
+  const normalized = new File([compressed], file.name, {
+    type: compressed.type || file.type,
+    lastModified: Date.now(),
+  });
+
+  if (normalized.size > MAX_IMAGE_SIZE) {
+    throw new Error("图片大小不能超过 2MB");
+  }
+
+  return normalized;
+}
 
   async function handleCreateImageChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!allowedImageMimeTypes.has(file.type)) {
-      Toast.toast.danger("仅支持 JPG、PNG、WebP 格式图片");
-      return;
-    }
-    if (file.size > MAX_IMAGE_SIZE) {
-      Toast.toast.danger("图片大小不能超过 2MB");
-      return;
-    }
 
     setCreateImageUploading(true);
     try {
-      const uploaded = await uploadProductImage(file);
+      const uploadFile = await prepareImageForUpload(file);
+      const uploaded = await uploadProductImage(uploadFile);
       setForm((prev) => ({ ...prev, ...uploaded }));
       Toast.toast.success("商品图片上传成功");
     } catch (error) {
@@ -305,18 +330,11 @@ export default function ProductsPage() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!allowedImageMimeTypes.has(file.type)) {
-      Toast.toast.danger("仅支持 JPG、PNG、WebP 格式图片");
-      return;
-    }
-    if (file.size > MAX_IMAGE_SIZE) {
-      Toast.toast.danger("图片大小不能超过 2MB");
-      return;
-    }
 
     setEditImageUploading(true);
     try {
-      const uploaded = await uploadProductImage(file);
+      const uploadFile = await prepareImageForUpload(file);
+      const uploaded = await uploadProductImage(uploadFile);
       setEditForm((prev) => ({ ...prev, ...uploaded }));
       Toast.toast.success("商品图片上传成功");
     } catch (error) {

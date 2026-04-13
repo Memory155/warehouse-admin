@@ -1,6 +1,7 @@
 "use client";
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
+import imageCompression from "browser-image-compression";
 import { Button, Card, Chip, Spinner, Toast } from "@heroui/react";
 import Image, { ImageLoaderProps } from "next/image";
 import AppSelect from "@/components/app-select";
@@ -76,6 +77,13 @@ const initialForm: ProductForm = {
 
 const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
 const allowedImageMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+const compressionOptions = {
+  maxSizeMB: 2,
+  maxWidthOrHeight: 1600,
+  useWebWorker: true,
+  initialQuality: 0.82,
+  alwaysKeepResolution: false,
+};
 
 function toNumber(value: string | number) {
   return Number(value);
@@ -107,6 +115,7 @@ type ProductImageFieldProps = {
   form: ProductForm;
   title: string;
   uploading: boolean;
+  onPreview: (imageUrl: string) => void;
   onChange: (event: ChangeEvent<HTMLInputElement>) => void;
   onClear: () => void;
 };
@@ -116,6 +125,7 @@ function ProductImageField({
   form,
   title,
   uploading,
+  onPreview,
   onChange,
   onClear,
 }: ProductImageFieldProps) {
@@ -126,15 +136,21 @@ function ProductImageField({
       <div className="mt-3 flex items-start gap-3">
         <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-white">
           {form.imageUrl ? (
-            <Image
-              src={form.imageUrl}
-              alt={`${title}预览`}
-              loader={imageLoader}
-              unoptimized
-              width={80}
-              height={80}
-              className="h-20 w-20 object-cover"
-            />
+            <button
+              type="button"
+              className="block h-20 w-20"
+              onClick={() => onPreview(form.imageUrl)}
+            >
+              <Image
+                src={form.imageUrl}
+                alt={`${title}预览`}
+                loader={imageLoader}
+                unoptimized
+                width={80}
+                height={80}
+                className="h-20 w-20 object-cover"
+              />
+            </button>
           ) : (
             <span className="text-xs text-zinc-400">暂无图片</span>
           )}
@@ -182,6 +198,7 @@ export default function ProductsPage() {
   const [editOpen, setEditOpen] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
   const [editImageUploading, setEditImageUploading] = useState(false);
+  const [previewImageUrl, setPreviewImageUrl] = useState<string | null>(null);
   const [editId, setEditId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<ProductForm>(initialForm);
   const [disableTarget, setDisableTarget] = useState<Product | null>(null);
@@ -249,7 +266,7 @@ export default function ProductsPage() {
     }
   }
 
-  async function uploadProductImage(file: File) {
+async function uploadProductImage(file: File) {
     const formData = new FormData();
     formData.append("file", file);
 
@@ -272,25 +289,42 @@ export default function ProductsPage() {
       throw new Error(data?.message ?? `上传图片失败（${response.status}）`);
     }
 
-    return data.item;
+  return data.item;
+}
+
+async function prepareImageForUpload(file: File) {
+  if (!allowedImageMimeTypes.has(file.type)) {
+    throw new Error("仅支持 JPG、PNG、WebP 格式图片");
   }
+
+  if (file.size <= MAX_IMAGE_SIZE) {
+    return file;
+  }
+
+  Toast.toast.warning("图片较大，正在压缩...");
+
+  const compressed = await imageCompression(file, compressionOptions);
+  const normalized = new File([compressed], file.name, {
+    type: compressed.type || file.type,
+    lastModified: Date.now(),
+  });
+
+  if (normalized.size > MAX_IMAGE_SIZE) {
+    throw new Error("图片大小不能超过 2MB");
+  }
+
+  return normalized;
+}
 
   async function handleCreateImageChange(event: ChangeEvent<HTMLInputElement>) {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!allowedImageMimeTypes.has(file.type)) {
-      Toast.toast.danger("仅支持 JPG、PNG、WebP 格式图片");
-      return;
-    }
-    if (file.size > MAX_IMAGE_SIZE) {
-      Toast.toast.danger("图片大小不能超过 2MB");
-      return;
-    }
 
     setCreateImageUploading(true);
     try {
-      const uploaded = await uploadProductImage(file);
+      const uploadFile = await prepareImageForUpload(file);
+      const uploaded = await uploadProductImage(uploadFile);
       setForm((prev) => ({ ...prev, ...uploaded }));
       Toast.toast.success("商品图片上传成功");
     } catch (error) {
@@ -305,18 +339,11 @@ export default function ProductsPage() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
-    if (!allowedImageMimeTypes.has(file.type)) {
-      Toast.toast.danger("仅支持 JPG、PNG、WebP 格式图片");
-      return;
-    }
-    if (file.size > MAX_IMAGE_SIZE) {
-      Toast.toast.danger("图片大小不能超过 2MB");
-      return;
-    }
 
     setEditImageUploading(true);
     try {
-      const uploaded = await uploadProductImage(file);
+      const uploadFile = await prepareImageForUpload(file);
+      const uploaded = await uploadProductImage(uploadFile);
       setEditForm((prev) => ({ ...prev, ...uploaded }));
       Toast.toast.success("商品图片上传成功");
     } catch (error) {
@@ -549,6 +576,7 @@ export default function ProductsPage() {
               form={form}
               disabled={!isAdmin || saving}
               uploading={createImageUploading}
+              onPreview={setPreviewImageUrl}
               onChange={handleCreateImageChange}
               onClear={() => setForm((prev) => clearImageFields(prev))}
             />
@@ -686,15 +714,21 @@ export default function ProductsPage() {
                           <div className="flex items-center gap-3">
                             <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">
                               {item.imageUrl ? (
-                                <Image
-                                  src={item.imageUrl}
-                                  alt={`${item.name}图片`}
-                                  loader={imageLoader}
-                                  unoptimized
-                                  width={48}
-                                  height={48}
-                                  className="h-12 w-12 object-cover"
-                                />
+                                <button
+                                  type="button"
+                                  className="block h-12 w-12"
+                                  onClick={() => setPreviewImageUrl(item.imageUrl!)}
+                                >
+                                  <Image
+                                    src={item.imageUrl}
+                                    alt={`${item.name}图片`}
+                                    loader={imageLoader}
+                                    unoptimized
+                                    width={48}
+                                    height={48}
+                                    className="h-12 w-12 object-cover"
+                                  />
+                                </button>
                               ) : (
                                 <span className="text-[10px] text-zinc-400">无图</span>
                               )}
@@ -792,6 +826,7 @@ export default function ProductsPage() {
                 form={editForm}
                 disabled={editSaving}
                 uploading={editImageUploading}
+                onPreview={setPreviewImageUrl}
                 onChange={handleEditImageChange}
                 onClear={() => setEditForm((prev) => clearImageFields(prev))}
               />
@@ -914,6 +949,33 @@ export default function ProductsPage() {
                 {disableSaving ? "处理中..." : "确认停用"}
               </Button>
             </div>
+          </div>
+        </div>
+        ) : null}
+
+      {previewImageUrl ? (
+        <div
+          className="fixed inset-0 z-[120] flex items-center justify-center bg-zinc-950/80 p-4"
+          onClick={() => setPreviewImageUrl(null)}
+        >
+          <div className="relative max-h-[90vh] max-w-[90vw]">
+            <button
+              type="button"
+              className="absolute right-2 top-2 z-10 inline-flex h-9 w-9 items-center justify-center rounded-full bg-zinc-900/70 text-sm text-white"
+              onClick={() => setPreviewImageUrl(null)}
+            >
+              ×
+            </button>
+            <Image
+              src={previewImageUrl}
+              alt="商品图片预览"
+              loader={imageLoader}
+              unoptimized
+              width={1200}
+              height={1200}
+              className="max-h-[90vh] w-auto max-w-[90vw] rounded-lg object-contain"
+              onClick={(event) => event.stopPropagation()}
+            />
           </div>
         </div>
       ) : null}

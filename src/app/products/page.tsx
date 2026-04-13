@@ -254,10 +254,19 @@ export default function ProductsPage() {
       method: "POST",
       body: formData,
     });
-    const data = (await response.json()) as { message?: string; item?: UploadedImage };
+    const raw = await response.text();
+    let data: { message?: string; item?: UploadedImage } | null = null;
 
-    if (!response.ok || !data.item) {
-      throw new Error(data.message ?? "上传图片失败");
+    if (raw) {
+      try {
+        data = JSON.parse(raw) as { message?: string; item?: UploadedImage };
+      } catch {
+        data = { message: raw };
+      }
+    }
+
+    if (!response.ok || !data?.item) {
+      throw new Error(data?.message ?? `上传图片失败（${response.status}）`);
     }
 
     return data.item;

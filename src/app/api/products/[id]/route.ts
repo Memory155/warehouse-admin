@@ -3,6 +3,25 @@ import { z } from "zod";
 import { requireAuth } from "@/lib/auth/guard";
 import { canEditInventory } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/db";
+import { deleteFromSupabaseStorage } from "@/lib/storage/supabase";
+
+const productImageSchema = z.object({
+  imageUrl: z.string().trim().max(500, "图片地址过长").optional().default(""),
+  imageKey: z.string().trim().max(500, "图片标识过长").optional().default(""),
+  imageMimeType: z.string().trim().max(100, "图片类型过长").optional().default(""),
+  imageSize: z.coerce.number().int().min(0, "图片大小无效").nullable().optional(),
+}).superRefine((data, context) => {
+  const hasUrl = Boolean(data.imageUrl);
+  const hasKey = Boolean(data.imageKey);
+
+  if (hasUrl !== hasKey) {
+    context.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: "商品图片信息不完整，请重新上传",
+      path: ["imageUrl"],
+    });
+  }
+});
 
 const updateProductSchema = z.object({
   name: z.string().trim().min(1, "商品名称不能为空").max(100, "商品名称最多 100 字"),
@@ -13,7 +32,7 @@ const updateProductSchema = z.object({
   safetyStock: z.coerce.number().min(0, "安全库存不能小于 0"),
   location: z.string().trim().max(100, "存放位置最多 100 字").optional().default(""),
   remark: z.string().trim().max(300, "备注最多 300 字").optional().default(""),
-});
+}).merge(productImageSchema);
 
 type RouteContext = {
   params: Promise<{ id: string }>;
@@ -53,7 +72,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const product = await prisma.product.findUnique({
       where: { id },
-      select: { id: true },
+      select: { id: true, imageKey: true },
     });
     if (!product) {
       return NextResponse.json({ message: "商品不存在" }, { status: 404 });
@@ -72,6 +91,10 @@ export async function PATCH(request: Request, context: RouteContext) {
       data: {
         name: body.name,
         categoryId: body.categoryId,
+        imageUrl: body.imageUrl || null,
+        imageKey: body.imageKey || null,
+        imageMimeType: body.imageMimeType || null,
+        imageSize: body.imageKey ? body.imageSize ?? null : null,
         unit: body.unit,
         spec: body.spec || null,
         currentStock: body.currentStock,
@@ -86,6 +109,14 @@ export async function PATCH(request: Request, context: RouteContext) {
         },
       },
     });
+
+    if (product.imageKey && product.imageKey !== updated.imageKey) {
+      try {
+        await deleteFromSupabaseStorage(product.imageKey);
+      } catch {
+        // Ignore cleanup failures so product updates still succeed.
+      }
+    }
 
     return NextResponse.json({ item: updated });
   } catch (error) {

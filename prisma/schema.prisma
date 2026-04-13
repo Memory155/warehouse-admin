@@ -55,6 +55,10 @@ model Product {
   id           String    @id @default(cuid())
   name         String
   categoryId   String
+  imageUrl     String?
+  imageKey     String?
+  imageMimeType String?
+  imageSize    Int?
   unit         String
   spec         String?
   currentStock Decimal   @default(0) @db.Decimal(14, 2)

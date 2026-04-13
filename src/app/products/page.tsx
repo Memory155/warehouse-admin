@@ -1,7 +1,8 @@
 "use client";
 
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ChangeEvent, FormEvent, useEffect, useMemo, useState } from "react";
 import { Button, Card, Chip, Spinner, Toast } from "@heroui/react";
+import Image, { ImageLoaderProps } from "next/image";
 import AppSelect from "@/components/app-select";
 
 type Category = {
@@ -14,6 +15,10 @@ type Product = {
   id: string;
   name: string;
   categoryId: string;
+  imageUrl: string | null;
+  imageKey: string | null;
+  imageMimeType: string | null;
+  imageSize: number | null;
   category: { id: string; name: string };
   unit: string;
   spec: string | null;
@@ -37,6 +42,10 @@ type AuthMeResponse = {
 type ProductForm = {
   name: string;
   categoryId: string;
+  imageUrl: string;
+  imageKey: string;
+  imageMimeType: string;
+  imageSize: number | null;
   unit: string;
   spec: string;
   currentStock: number;
@@ -45,9 +54,18 @@ type ProductForm = {
   remark: string;
 };
 
+type UploadedImage = Pick<
+  ProductForm,
+  "imageUrl" | "imageKey" | "imageMimeType" | "imageSize"
+>;
+
 const initialForm: ProductForm = {
   name: "",
   categoryId: "",
+  imageUrl: "",
+  imageKey: "",
+  imageMimeType: "",
+  imageSize: null,
   unit: "",
   spec: "",
   currentStock: 0,
@@ -60,6 +78,96 @@ function toNumber(value: string | number) {
   return Number(value);
 }
 
+function imageLoader({ src }: ImageLoaderProps) {
+  return src;
+}
+
+function formatImageSize(size: number | null) {
+  if (!size) return "";
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function clearImageFields(form: ProductForm): ProductForm {
+  return {
+    ...form,
+    imageUrl: "",
+    imageKey: "",
+    imageMimeType: "",
+    imageSize: null,
+  };
+}
+
+type ProductImageFieldProps = {
+  disabled: boolean;
+  form: ProductForm;
+  title: string;
+  uploading: boolean;
+  onChange: (event: ChangeEvent<HTMLInputElement>) => void;
+  onClear: () => void;
+};
+
+function ProductImageField({
+  disabled,
+  form,
+  title,
+  uploading,
+  onChange,
+  onClear,
+}: ProductImageFieldProps) {
+  return (
+    <div className="rounded-lg border border-dashed border-zinc-300 bg-zinc-50 p-3 md:col-span-2">
+      <p className="text-sm font-medium text-zinc-800">{title}</p>
+      <p className="mt-1 text-xs text-zinc-500">支持 JPG、PNG、WebP，大小不超过 2MB</p>
+      <div className="mt-3 flex items-start gap-3">
+        <div className="flex h-20 w-20 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-white">
+          {form.imageUrl ? (
+            <Image
+              src={form.imageUrl}
+              alt={`${title}预览`}
+              loader={imageLoader}
+              unoptimized
+              width={80}
+              height={80}
+              className="h-20 w-20 object-cover"
+            />
+          ) : (
+            <span className="text-xs text-zinc-400">暂无图片</span>
+          )}
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="flex flex-col gap-2 sm:flex-row">
+            <label className="inline-flex cursor-pointer items-center justify-center rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-700 hover:bg-zinc-50">
+              <input
+                type="file"
+                accept="image/jpeg,image/png,image/webp"
+                className="hidden"
+                disabled={disabled || uploading}
+                onChange={onChange}
+              />
+              {uploading ? "上传中..." : form.imageUrl ? "更换图片" : "上传图片"}
+            </label>
+            <Button
+              type="button"
+              className="border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
+              isDisabled={disabled || uploading || !form.imageUrl}
+              onPress={onClear}
+            >
+              清空图片
+            </Button>
+          </div>
+          {form.imageUrl ? (
+            <p className="mt-2 truncate text-xs text-zinc-500">
+              {form.imageMimeType || "image/*"} {formatImageSize(form.imageSize)}
+            </p>
+          ) : null}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProductsPage() {
   const [items, setItems] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
@@ -67,8 +175,10 @@ export default function ProductsPage() {
   const [role, setRole] = useState<"SUPER_ADMIN" | "ADMIN" | "USER">("USER");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [createImageUploading, setCreateImageUploading] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
+  const [editImageUploading, setEditImageUploading] = useState(false);
   const [editId, setEditId] = useState<string | null>(null);
   const [editForm, setEditForm] = useState<ProductForm>(initialForm);
   const [disableTarget, setDisableTarget] = useState<Product | null>(null);
@@ -136,6 +246,59 @@ export default function ProductsPage() {
     }
   }
 
+  async function uploadProductImage(file: File) {
+    const formData = new FormData();
+    formData.append("file", file);
+
+    const response = await fetch("/api/uploads/product-image", {
+      method: "POST",
+      body: formData,
+    });
+    const data = (await response.json()) as { message?: string; item?: UploadedImage };
+
+    if (!response.ok || !data.item) {
+      throw new Error(data.message ?? "上传图片失败");
+    }
+
+    return data.item;
+  }
+
+  async function handleCreateImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setCreateImageUploading(true);
+    try {
+      const uploaded = await uploadProductImage(file);
+      setForm((prev) => ({ ...prev, ...uploaded }));
+      Toast.toast.success("商品图片上传成功");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "上传图片失败";
+      Toast.toast.danger(message);
+    } finally {
+      setCreateImageUploading(false);
+    }
+  }
+
+  async function handleEditImageChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setEditImageUploading(true);
+    try {
+      const uploaded = await uploadProductImage(file);
+      setEditForm((prev) => ({ ...prev, ...uploaded }));
+      Toast.toast.success("商品图片上传成功");
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "上传图片失败";
+      Toast.toast.danger(message);
+    } finally {
+      setEditImageUploading(false);
+    }
+  }
+
   async function handleCreateSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setSaving(true);
@@ -149,8 +312,7 @@ export default function ProductsPage() {
 
       const data = (await response.json()) as { message?: string };
       if (!response.ok) {
-        const message = data.message ?? "保存失败";
-        Toast.toast.danger(message);
+        Toast.toast.danger(data.message ?? "保存失败");
         return;
       }
 
@@ -158,8 +320,7 @@ export default function ProductsPage() {
       setForm(initialForm);
       await loadProducts();
     } catch {
-      const message = "保存失败，请稍后重试";
-      Toast.toast.danger(message);
+      Toast.toast.danger("保存失败，请稍后重试");
     } finally {
       setSaving(false);
     }
@@ -170,6 +331,10 @@ export default function ProductsPage() {
     setEditForm({
       name: item.name,
       categoryId: item.categoryId,
+      imageUrl: item.imageUrl ?? "",
+      imageKey: item.imageKey ?? "",
+      imageMimeType: item.imageMimeType ?? "",
+      imageSize: item.imageSize ?? null,
       unit: item.unit,
       spec: item.spec ?? "",
       currentStock: toNumber(item.currentStock),
@@ -183,6 +348,7 @@ export default function ProductsPage() {
   function closeEditModal() {
     setEditOpen(false);
     setEditId(null);
+    setEditImageUploading(false);
     setEditForm(initialForm);
   }
 
@@ -229,8 +395,7 @@ export default function ProductsPage() {
       });
       const data = (await response.json()) as { message?: string };
       if (!response.ok) {
-        const message = data.message ?? "停用失败";
-        Toast.toast.danger(message);
+        Toast.toast.danger(data.message ?? "停用失败");
         return;
       }
 
@@ -238,8 +403,7 @@ export default function ProductsPage() {
       closeDisableModal();
       await loadProducts();
     } catch {
-      const message = "停用失败，请稍后重试";
-      Toast.toast.danger(message);
+      Toast.toast.danger("停用失败，请稍后重试");
     } finally {
       setDisableSaving(false);
     }
@@ -256,20 +420,20 @@ export default function ProductsPage() {
 
   return (
     <div className="w-full space-y-4">
-        <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
-          <Card.Header>
+      <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
+        <Card.Header>
           <h1 className="text-xl font-semibold sm:text-2xl">商品管理</h1>
           <p className="mt-1 text-sm text-zinc-600">
             共 {items.length} 个商品，低库存 {lowStockCount} 个，缺货 {outCount} 个
           </p>
-          </Card.Header>
-        </Card>
+        </Card.Header>
+      </Card>
 
-        <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
-          <Card.Header>
+      <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
+        <Card.Header>
           <h2 className="text-lg font-medium">筛选</h2>
-          </Card.Header>
-          <Card.Content>
+        </Card.Header>
+        <Card.Content>
           <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
             <input
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600"
@@ -321,30 +485,44 @@ export default function ProductsPage() {
               应用筛选
             </Button>
           </div>
-          </Card.Content>
-        </Card>
+        </Card.Content>
+      </Card>
 
-        <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
-          <Card.Header>
+      <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
+        <Card.Header>
           <h2 className="text-lg font-medium">新增商品</h2>
-          </Card.Header>
-          <Card.Content>
+        </Card.Header>
+        <Card.Content>
           {!isAdmin ? (
             <p className="mt-2 text-sm text-zinc-500">
               当前账号是 USER，仅可查看，不能新增/编辑/停用。
             </p>
           ) : null}
 
-          <form className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4" onSubmit={handleCreateSubmit}>
-            <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 md:col-span-2 disabled:bg-zinc-100"
-              placeholder="商品名称"
-              value={form.name}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, name: event.target.value }))
-              }
+          <form
+            className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4"
+            onSubmit={handleCreateSubmit}
+          >
+            <label className="md:col-span-2">
+              <textarea
+                className="block w-full resize-none rounded-md border border-zinc-300 px-3 py-3 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100"
+                placeholder="请输入商品名称"
+                rows={7}
+                value={form.name}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, name: event.target.value }))
+                }
+                disabled={!isAdmin || saving}
+                required
+              />
+            </label>
+            <ProductImageField
+              title="商品主图"
+              form={form}
               disabled={!isAdmin || saving}
-              required
+              uploading={createImageUploading}
+              onChange={handleCreateImageChange}
+              onClear={() => setForm((prev) => clearImageFields(prev))}
             />
             <AppSelect
               value={form.categoryId}
@@ -429,20 +607,20 @@ export default function ProductsPage() {
               <Button
                 type="submit"
                 className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
-                isDisabled={!isAdmin || saving}
+                isDisabled={!isAdmin || saving || createImageUploading}
               >
                 {saving ? "保存中..." : "创建商品"}
               </Button>
             </div>
           </form>
-          </Card.Content>
-        </Card>
+        </Card.Content>
+      </Card>
 
-        <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
-          <Card.Header>
+      <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
+        <Card.Header>
           <h2 className="text-lg font-medium">商品列表</h2>
-          </Card.Header>
-          <Card.Content>
+        </Card.Header>
+        <Card.Content>
           {loading ? (
             <div className="mt-3 flex items-center gap-2 text-sm text-zinc-600">
               <Spinner size="sm" />
@@ -472,212 +650,245 @@ export default function ProductsPage() {
                     </tr>
                   ) : (
                     items.map((item) => (
-                    <tr
-                      key={item.id}
-                      className="border-b border-zinc-100 transition-colors hover:bg-zinc-50/80"
-                    >
-                      <td className="py-2 pr-4">
-                        <div className="font-medium">{item.name}</div>
-                        <div className="text-xs text-zinc-500">
-                          {item.spec || "-"} | {item.location || "-"}
-                        </div>
-                      </td>
-                      <td className="py-2 pr-4">{item.category.name}</td>
-                      <td className="py-2 pr-4">{toNumber(item.currentStock)}</td>
-                      <td className="py-2 pr-4">{toNumber(item.safetyStock)}</td>
-                      <td className="py-2 pr-4">{item.unit}</td>
-                      <td className="py-2 pr-4">
-                        {!item.isActive ? (
-                          <Chip size="sm" variant="soft" color="default">
-                            停用
-                          </Chip>
-                        ) : item.stockStatus === "out" ? (
-                          <Chip size="sm" variant="soft" color="danger">
-                            缺货
-                          </Chip>
-                        ) : item.stockStatus === "low" ? (
-                          <Chip size="sm" variant="soft" color="warning">
-                            低库存
-                          </Chip>
-                        ) : (
-                          <Chip size="sm" variant="soft" color="success">
-                            正常
-                          </Chip>
-                        )}
-                      </td>
-                      <td className="py-2 pr-4">
-                        {new Date(item.updatedAt).toLocaleString()}
-                      </td>
-                      <td className="py-2">
-                        <div className="flex flex-wrap gap-2">
-                          <Button
-                            type="button"
-                            size="sm"
-                            className="border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
-                            onClick={() => startEdit(item)}
-                            isDisabled={!isAdmin}
-                          >
-                            编辑
-                          </Button>
-                          {item.isActive ? (
+                      <tr
+                        key={item.id}
+                        className="border-b border-zinc-100 transition-colors hover:bg-zinc-50/80"
+                      >
+                        <td className="py-2 pr-4">
+                          <div className="flex items-center gap-3">
+                            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">
+                              {item.imageUrl ? (
+                                <Image
+                                  src={item.imageUrl}
+                                  alt={`${item.name}图片`}
+                                  loader={imageLoader}
+                                  unoptimized
+                                  width={48}
+                                  height={48}
+                                  className="h-12 w-12 object-cover"
+                                />
+                              ) : (
+                                <span className="text-[10px] text-zinc-400">无图</span>
+                              )}
+                            </div>
+                            <div className="min-w-0">
+                              <div className="font-medium">{item.name}</div>
+                              <div className="text-xs text-zinc-500">
+                                {item.spec || "-"} | {item.location || "-"}
+                              </div>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="py-2 pr-4">{item.category.name}</td>
+                        <td className="py-2 pr-4">{toNumber(item.currentStock)}</td>
+                        <td className="py-2 pr-4">{toNumber(item.safetyStock)}</td>
+                        <td className="py-2 pr-4">{item.unit}</td>
+                        <td className="py-2 pr-4">
+                          {!item.isActive ? (
+                            <Chip size="sm" variant="soft" color="default">
+                              停用
+                            </Chip>
+                          ) : item.stockStatus === "out" ? (
+                            <Chip size="sm" variant="soft" color="danger">
+                              缺货
+                            </Chip>
+                          ) : item.stockStatus === "low" ? (
+                            <Chip size="sm" variant="soft" color="warning">
+                              低库存
+                            </Chip>
+                          ) : (
+                            <Chip size="sm" variant="soft" color="success">
+                              正常
+                            </Chip>
+                          )}
+                        </td>
+                        <td className="py-2 pr-4">
+                          {new Date(item.updatedAt).toLocaleString()}
+                        </td>
+                        <td className="py-2">
+                          <div className="flex flex-wrap gap-2">
                             <Button
                               type="button"
                               size="sm"
-                              className="border border-red-300 bg-white text-red-600 hover:bg-red-50"
-                              onClick={() => askDisableProduct(item)}
+                              className="border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
+                              onClick={() => startEdit(item)}
                               isDisabled={!isAdmin}
                             >
-                              停用
+                              编辑
                             </Button>
-                          ) : null}
-                        </div>
-                      </td>
-                    </tr>
+                            {item.isActive ? (
+                              <Button
+                                type="button"
+                                size="sm"
+                                className="border border-red-300 bg-white text-red-600 hover:bg-red-50"
+                                onClick={() => askDisableProduct(item)}
+                                isDisabled={!isAdmin}
+                              >
+                                停用
+                              </Button>
+                            ) : null}
+                          </div>
+                        </td>
+                      </tr>
                     ))
                   )}
                 </tbody>
               </table>
             </div>
           )}
-          </Card.Content>
-        </Card>
+        </Card.Content>
+      </Card>
 
-        {editOpen ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/35 p-4">
-            <div className="max-h-[calc(100vh-2rem)] w-full max-w-3xl overflow-y-auto rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
-              <h3 className="text-lg font-semibold">编辑商品</h3>
-              <form className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4" onSubmit={submitEdit}>
-                <input
-                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 md:col-span-2"
-                  placeholder="商品名称"
+      {editOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/35 p-4">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-3xl overflow-y-auto rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
+            <h3 className="text-lg font-semibold">编辑商品</h3>
+            <form
+              className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4"
+              onSubmit={submitEdit}
+            >
+              <label className="md:col-span-2">
+                <textarea
+                  className="block w-full resize-none rounded-md border border-zinc-300 px-3 py-3 text-sm outline-none focus:border-zinc-600"
+                  placeholder="请输入商品名称"
+                  rows={7}
                   value={editForm.name}
                   onChange={(event) =>
                     setEditForm((prev) => ({ ...prev, name: event.target.value }))
                   }
                   required
                 />
-                <AppSelect
-                  value={editForm.categoryId}
-                  onChange={(value) =>
-                    setEditForm((prev) => ({ ...prev, categoryId: value }))
-                  }
-                  placeholder="选择分类"
-                  options={categories.map((item) => ({ value: item.id, label: item.name }))}
-                />
-                <input
-                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600"
-                  placeholder="单位（个/包/瓶）"
-                  value={editForm.unit}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({ ...prev, unit: event.target.value }))
-                  }
-                  required
-                />
-                <input
-                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600"
-                  placeholder="规格（可选）"
-                  value={editForm.spec}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({ ...prev, spec: event.target.value }))
-                  }
-                />
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600"
-                  placeholder="当前库存"
-                  value={editForm.currentStock}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      currentStock: Number(event.target.value),
-                    }))
-                  }
-                  required
-                />
-                <input
-                  type="number"
-                  min={0}
-                  step="0.01"
-                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600"
-                  placeholder="安全库存"
-                  value={editForm.safetyStock}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({
-                      ...prev,
-                      safetyStock: Number(event.target.value),
-                    }))
-                  }
-                  required
-                />
-                <input
-                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 md:col-span-2"
-                  placeholder="存放位置（可选）"
-                  value={editForm.location}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({ ...prev, location: event.target.value }))
-                  }
-                />
-                <textarea
-                  className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 md:col-span-2 xl:col-span-4"
-                  placeholder="备注（可选）"
-                  rows={3}
-                  value={editForm.remark}
-                  onChange={(event) =>
-                    setEditForm((prev) => ({ ...prev, remark: event.target.value }))
-                  }
-                />
-                <div className="flex flex-col-reverse justify-end gap-2 md:col-span-2 xl:col-span-4 sm:flex-row">
-                  <Button
-                    type="button"
-                    className="w-full border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto"
-                    onPress={closeEditModal}
-                    isDisabled={editSaving}
-                  >
-                    取消
-                  </Button>
-                  <Button
-                    type="submit"
-                    className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
-                    isDisabled={editSaving}
-                  >
-                    {editSaving ? "保存中..." : "保存"}
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </div>
-        ) : null}
-
-        {disableTarget ? (
-          <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/35 p-4">
-            <div className="max-h-[calc(100vh-2rem)] w-full max-w-sm overflow-y-auto rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
-              <h3 className="text-lg font-semibold">确认停用商品</h3>
-              <p className="mt-2 text-sm text-zinc-600">
-                确认停用商品「{disableTarget.name}」吗？停用后该商品不会在常规列表中显示。
-              </p>
-              <div className="mt-5 flex flex-col-reverse justify-end gap-2 sm:flex-row">
+              </label>
+              <ProductImageField
+                title="商品主图"
+                form={editForm}
+                disabled={editSaving}
+                uploading={editImageUploading}
+                onChange={handleEditImageChange}
+                onClear={() => setEditForm((prev) => clearImageFields(prev))}
+              />
+              <AppSelect
+                value={editForm.categoryId}
+                onChange={(value) =>
+                  setEditForm((prev) => ({ ...prev, categoryId: value }))
+                }
+                placeholder="选择分类"
+                options={categories.map((item) => ({ value: item.id, label: item.name }))}
+              />
+              <input
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                placeholder="单位（个/包/瓶）"
+                value={editForm.unit}
+                onChange={(event) =>
+                  setEditForm((prev) => ({ ...prev, unit: event.target.value }))
+                }
+                required
+              />
+              <input
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                placeholder="规格（可选）"
+                value={editForm.spec}
+                onChange={(event) =>
+                  setEditForm((prev) => ({ ...prev, spec: event.target.value }))
+                }
+              />
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                placeholder="当前库存"
+                value={editForm.currentStock}
+                onChange={(event) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    currentStock: Number(event.target.value),
+                  }))
+                }
+                required
+              />
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600"
+                placeholder="安全库存"
+                value={editForm.safetyStock}
+                onChange={(event) =>
+                  setEditForm((prev) => ({
+                    ...prev,
+                    safetyStock: Number(event.target.value),
+                  }))
+                }
+                required
+              />
+              <input
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 md:col-span-2"
+                placeholder="存放位置（可选）"
+                value={editForm.location}
+                onChange={(event) =>
+                  setEditForm((prev) => ({ ...prev, location: event.target.value }))
+                }
+              />
+              <textarea
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 md:col-span-2 xl:col-span-4"
+                placeholder="备注（可选）"
+                rows={3}
+                value={editForm.remark}
+                onChange={(event) =>
+                  setEditForm((prev) => ({ ...prev, remark: event.target.value }))
+                }
+              />
+              <div className="flex flex-col-reverse justify-end gap-2 md:col-span-2 xl:col-span-4 sm:flex-row">
                 <Button
                   type="button"
                   className="w-full border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto"
-                  onPress={closeDisableModal}
-                  isDisabled={disableSaving}
+                  onPress={closeEditModal}
+                  isDisabled={editSaving}
                 >
                   取消
                 </Button>
                 <Button
-                  type="button"
+                  type="submit"
                   className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
-                  onPress={confirmDisableProduct}
-                  isDisabled={disableSaving}
+                  isDisabled={editSaving || editImageUploading}
                 >
-                  {disableSaving ? "处理中..." : "确认停用"}
+                  {editSaving ? "保存中..." : "保存"}
                 </Button>
               </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
+
+      {disableTarget ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/35 p-4">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-sm overflow-y-auto rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
+            <h3 className="text-lg font-semibold">确认停用商品</h3>
+            <p className="mt-2 text-sm text-zinc-600">
+              确认停用商品「{disableTarget.name}」吗？停用后该商品不会在常规列表中显示。
+            </p>
+            <div className="mt-5 flex flex-col-reverse justify-end gap-2 sm:flex-row">
+              <Button
+                type="button"
+                className="w-full border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto"
+                onPress={closeDisableModal}
+                isDisabled={disableSaving}
+              >
+                取消
+              </Button>
+              <Button
+                type="button"
+                className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
+                onPress={confirmDisableProduct}
+                isDisabled={disableSaving}
+              >
+                {disableSaving ? "处理中..." : "确认停用"}
+              </Button>
             </div>
           </div>
-        ) : null}
-      </div>
+        </div>
+      ) : null}
+    </div>
   );
 }

@@ -74,6 +74,9 @@ const initialForm: ProductForm = {
   remark: "",
 };
 
+const MAX_IMAGE_SIZE = 2 * 1024 * 1024;
+const allowedImageMimeTypes = new Set(["image/jpeg", "image/png", "image/webp"]);
+
 function toNumber(value: string | number) {
   return Number(value);
 }
@@ -276,6 +279,14 @@ export default function ProductsPage() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    if (!allowedImageMimeTypes.has(file.type)) {
+      Toast.toast.danger("仅支持 JPG、PNG、WebP 格式图片");
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      Toast.toast.danger("图片大小不能超过 2MB");
+      return;
+    }
 
     setCreateImageUploading(true);
     try {
@@ -294,6 +305,14 @@ export default function ProductsPage() {
     const file = event.target.files?.[0];
     event.target.value = "";
     if (!file) return;
+    if (!allowedImageMimeTypes.has(file.type)) {
+      Toast.toast.danger("仅支持 JPG、PNG、WebP 格式图片");
+      return;
+    }
+    if (file.size > MAX_IMAGE_SIZE) {
+      Toast.toast.danger("图片大小不能超过 2MB");
+      return;
+    }
 
     setEditImageUploading(true);
     try {

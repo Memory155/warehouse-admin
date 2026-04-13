@@ -1,6 +1,7 @@
 "use client";
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import Image, { ImageLoaderProps } from "next/image";
 import { useRouter } from "next/navigation";
 import { Button, Card, Chip, Spinner, Toast } from "@heroui/react";
 import AppSelect from "@/components/app-select";
@@ -60,6 +61,10 @@ function roleLabel(role: Role) {
 
 function statusLabel(status: UserStatus) {
   return status === "ACTIVE" ? "启用" : "停用";
+}
+
+function imageLoader({ src }: ImageLoaderProps) {
+  return src;
 }
 
 export default function UsersPage() {
@@ -509,7 +514,28 @@ export default function UsersPage() {
                       <td className="py-2 pr-4 text-zinc-400">
                         {canDragUser(item) ? <span className="select-none">⋮⋮</span> : "-"}
                       </td>
-                      <td className="py-2 pr-4">{item.username}</td>
+                      <td className="py-2 pr-4">
+                        <div className="flex items-center gap-2">
+                          <div className="flex h-7 w-7 shrink-0 items-center justify-center overflow-hidden rounded-full border border-zinc-200 bg-zinc-100">
+                            {item.avatarUrl ? (
+                              <Image
+                                src={item.avatarUrl}
+                                alt={`${item.username}头像`}
+                                loader={imageLoader}
+                                unoptimized
+                                width={28}
+                                height={28}
+                                className="h-7 w-7 object-cover"
+                              />
+                            ) : (
+                              <span className="text-[10px] font-medium text-zinc-600">
+                                {(item.username.slice(0, 1) || "U").toUpperCase()}
+                              </span>
+                            )}
+                          </div>
+                          <span>{item.username}</span>
+                        </div>
+                      </td>
                       <td className="py-2 pr-4">
                         <Chip size="sm" variant="soft" color="default">
                           {roleLabel(item.role)}

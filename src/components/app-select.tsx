@@ -1,6 +1,7 @@
 "use client";
 
-import { Key } from "react";
+import { Key, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { ListBox, ListBoxItem, Select } from "@heroui/react";
 
 export type SelectOption = {
@@ -25,6 +26,8 @@ export default function AppSelect({
   ariaLabel,
   disabled = false,
 }: AppSelectProps) {
+  const [open, setOpen] = useState(false);
+
   function handleSelectionChange(key: Key | null) {
     if (key === null) {
       onChange("");
@@ -40,6 +43,7 @@ export default function AppSelect({
     <Select
       selectedKey={selectedKey}
       onSelectionChange={handleSelectionChange}
+      onOpenChange={setOpen}
       isDisabled={disabled}
       aria-label={ariaLabel ?? placeholder}
     >
@@ -53,6 +57,11 @@ export default function AppSelect({
             )
           }
         </Select.Value>
+        <ChevronDown
+          className={`h-4 w-4 shrink-0 text-zinc-400 transition-transform duration-200 ${
+            open ? "rotate-180" : "rotate-0"
+          }`}
+        />
       </Select.Trigger>
       <Select.Popover placement="bottom start" offset={8} className="z-50">
         <ListBox className="rounded-md border border-zinc-200 bg-white p-1 shadow-lg">

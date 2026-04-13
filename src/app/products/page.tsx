@@ -614,11 +614,11 @@ async function prepareImageForUpload(file: File) {
               step="0.01"
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100"
               placeholder="当前库存"
-              value={form.currentStock}
+              value={form.currentStock === 0 ? "" : form.currentStock}
               onChange={(event) =>
                 setForm((prev) => ({
                   ...prev,
-                  currentStock: Number(event.target.value),
+                  currentStock: event.target.value === "" ? 0 : Number(event.target.value),
                 }))
               }
               disabled={!isAdmin || saving}
@@ -630,11 +630,11 @@ async function prepareImageForUpload(file: File) {
               step="0.01"
               className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100"
               placeholder="安全库存"
-              value={form.safetyStock}
+              value={form.safetyStock === 0 ? "" : form.safetyStock}
               onChange={(event) =>
                 setForm((prev) => ({
                   ...prev,
-                  safetyStock: Number(event.target.value),
+                  safetyStock: event.target.value === "" ? 0 : Number(event.target.value),
                 }))
               }
               disabled={!isAdmin || saving}
@@ -861,11 +861,11 @@ async function prepareImageForUpload(file: File) {
                 step="0.01"
                 className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600"
                 placeholder="当前库存"
-                value={editForm.currentStock}
+                value={editForm.currentStock === 0 ? "" : editForm.currentStock}
                 onChange={(event) =>
                   setEditForm((prev) => ({
                     ...prev,
-                    currentStock: Number(event.target.value),
+                    currentStock: event.target.value === "" ? 0 : Number(event.target.value),
                   }))
                 }
                 required
@@ -876,11 +876,11 @@ async function prepareImageForUpload(file: File) {
                 step="0.01"
                 className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600"
                 placeholder="安全库存"
-                value={editForm.safetyStock}
+                value={editForm.safetyStock === 0 ? "" : editForm.safetyStock}
                 onChange={(event) =>
                   setEditForm((prev) => ({
                     ...prev,
-                    safetyStock: Number(event.target.value),
+                    safetyStock: event.target.value === "" ? 0 : Number(event.target.value),
                   }))
                 }
                 required

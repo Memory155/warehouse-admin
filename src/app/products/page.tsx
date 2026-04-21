@@ -61,6 +61,40 @@ type UploadedImage = Pick<
   "imageUrl" | "imageKey" | "imageMimeType" | "imageSize"
 >;
 
+type ImportPreviewRow = {
+  rowNumber: number;
+  action: "create" | "update";
+  name: string;
+  categoryId: string;
+  categoryName: string;
+  unit: string;
+  spec: string;
+  currentStock: number;
+  safetyStock: number;
+  location: string;
+  remark: string;
+  isActive: boolean;
+};
+
+type ImportPreviewError = {
+  rowNumber: number;
+  field: string;
+  message: string;
+};
+
+type ImportPreviewResult = {
+  rows: ImportPreviewRow[];
+  errors: ImportPreviewError[];
+  summary: {
+    totalRows: number;
+    dataRows: number;
+    validRows: number;
+    errorRows: number;
+    createCount: number;
+    updateCount: number;
+  };
+};
+
 const initialForm: ProductForm = {
   name: "",
   categoryId: "",
@@ -204,6 +238,12 @@ export default function ProductsPage() {
   const [editForm, setEditForm] = useState<ProductForm>(initialForm);
   const [disableTarget, setDisableTarget] = useState<Product | null>(null);
   const [disableSaving, setDisableSaving] = useState(false);
+  const [exporting, setExporting] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  const [importPreviewing, setImportPreviewing] = useState(false);
+  const [importCommitting, setImportCommitting] = useState(false);
+  const [importFileName, setImportFileName] = useState("");
+  const [importResult, setImportResult] = useState<ImportPreviewResult | null>(null);
 
   const [keyword, setKeyword] = useState("");
   const [filterCategoryId, setFilterCategoryId] = useState("");
@@ -280,6 +320,164 @@ export default function ProductsPage() {
       Toast.toast.danger("加载商品失败，请检查网络");
     } finally {
       setLoading(false);
+    }
+  }
+
+  function getProductFilterParams() {
+    const params = new URLSearchParams();
+    if (keyword.trim()) params.set("q", keyword.trim());
+    if (filterCategoryId) params.set("categoryId", filterCategoryId);
+    if (stockStatus) params.set("stockStatus", stockStatus);
+    if (includeInactive) params.set("includeInactive", "true");
+    return params;
+  }
+
+  async function downloadExcel(url: string, fallbackName: string) {
+    const response = await clientFetch(url);
+    if (!response.ok) {
+      const data = (await response.json().catch(() => null)) as { message?: string } | null;
+      throw new Error(data?.message ?? "下载失败");
+    }
+
+    const blob = await response.blob();
+    const objectUrl = window.URL.createObjectURL(blob);
+    const anchor = document.createElement("a");
+    const disposition = response.headers.get("Content-Disposition");
+    const matchedName = disposition?.match(/filename="?([^"]+)"?/i)?.[1];
+
+    anchor.href = objectUrl;
+    anchor.download = matchedName ?? fallbackName;
+    document.body.appendChild(anchor);
+    anchor.click();
+    anchor.remove();
+    window.URL.revokeObjectURL(objectUrl);
+  }
+
+  function resetImportState() {
+    setImportOpen(false);
+    setImportFileName("");
+    setImportResult(null);
+  }
+
+  function closeImportModal() {
+    if (importPreviewing || importCommitting) return;
+    resetImportState();
+  }
+
+  async function handleExportProducts() {
+    setExporting(true);
+    try {
+      const params = getProductFilterParams();
+      await downloadExcel(
+        `/api/products/export?${params.toString()}`,
+        "warehouse-products-export.xlsx",
+      );
+      Toast.toast.success("商品 Excel 已开始下载");
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
+      const message = error instanceof Error ? error.message : "导出失败，请稍后重试";
+      Toast.toast.danger(message);
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleDownloadImportTemplate() {
+    try {
+      await downloadExcel(
+        "/api/products/import-template",
+        "warehouse-products-import-template.xlsx",
+      );
+      Toast.toast.success("导入模板已开始下载");
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
+      const message = error instanceof Error ? error.message : "下载模板失败";
+      Toast.toast.danger(message);
+    }
+  }
+
+  async function handleImportFileChange(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    setImportPreviewing(true);
+    setImportFileName(file.name);
+    setImportResult(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+
+      const response = await clientFetch("/api/products/import/preview", {
+        method: "POST",
+        body: formData,
+      });
+      const data = (await response.json()) as ImportPreviewResult & { message?: string };
+
+      if (!response.ok) {
+        Toast.toast.danger(data.message ?? "导入预校验失败");
+        return;
+      }
+
+      setImportResult(data);
+      if (data.summary.validRows > 0) {
+        Toast.toast.success(
+          `预校验完成，可导入 ${data.summary.validRows} 条数据`,
+        );
+      } else {
+        Toast.toast.warning("预校验完成，但没有可导入的数据");
+      }
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
+      const message = error instanceof Error ? error.message : "导入预校验失败";
+      Toast.toast.danger(message);
+    } finally {
+      setImportPreviewing(false);
+    }
+  }
+
+  async function handleCommitImport() {
+    if (!importResult || importResult.rows.length === 0) {
+      Toast.toast.warning("没有可导入的数据");
+      return;
+    }
+
+    setImportCommitting(true);
+    try {
+      const response = await clientFetch("/api/products/import/commit", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: importResult.rows }),
+      });
+      const data = (await response.json()) as { message?: string };
+
+      if (!response.ok) {
+        Toast.toast.danger(data.message ?? "导入失败");
+        return;
+      }
+
+      Toast.toast.success(data.message ?? "导入完成");
+      resetImportState();
+      await loadProducts();
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
+      const message = error instanceof Error ? error.message : "导入失败，请稍后重试";
+      Toast.toast.danger(message);
+    } finally {
+      setImportCommitting(false);
     }
   }
 
@@ -513,11 +711,32 @@ async function prepareImageForUpload(file: File) {
   return (
     <div className="w-full space-y-4">
       <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
-        <Card.Header>
-          <h1 className="text-xl font-semibold sm:text-2xl">商品管理</h1>
-          <p className="mt-1 text-sm text-zinc-600">
-            共 {items.length} 个商品，低库存 {lowStockCount} 个，缺货 {outCount} 个
-          </p>
+        <Card.Header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <h1 className="text-xl font-semibold sm:text-2xl">商品管理</h1>
+            <p className="mt-1 text-sm text-zinc-600">
+              共 {items.length} 个商品，低库存 {lowStockCount} 个，缺货 {outCount} 个
+            </p>
+          </div>
+          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+            <Button
+              type="button"
+              className="w-full border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto"
+              onPress={() => void handleExportProducts()}
+              isDisabled={exporting}
+            >
+              {exporting ? "导出中..." : "导出 Excel"}
+            </Button>
+            {isAdmin ? (
+              <Button
+                type="button"
+                className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
+                onPress={() => setImportOpen(true)}
+              >
+                导入 Excel
+              </Button>
+            ) : null}
+          </div>
         </Card.Header>
       </Card>
 
@@ -837,6 +1056,190 @@ async function prepareImageForUpload(file: File) {
           )}
         </Card.Content>
       </Card>
+
+      {importOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/35 p-4">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-5xl overflow-y-auto rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h3 className="text-lg font-semibold">导入商品 Excel</h3>
+                <p className="mt-1 text-sm text-zinc-600">
+                  支持批量新增和更新商品，按“商品名称 + 分类名称”识别是否为已有商品。
+                </p>
+              </div>
+              <Button
+                type="button"
+                className="border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
+                onPress={() => void handleDownloadImportTemplate()}
+                isDisabled={importPreviewing || importCommitting}
+              >
+                下载模板
+              </Button>
+            </div>
+
+            <div className="mt-4 rounded-xl border border-dashed border-zinc-300 bg-zinc-50 p-4">
+              <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+                <div>
+                  <p className="text-sm font-medium text-zinc-800">上传 Excel 文件</p>
+                  <p className="mt-1 text-xs text-zinc-500">
+                    仅支持 .xlsx，图片不会通过 Excel 导入。
+                  </p>
+                  {importFileName ? (
+                    <p className="mt-2 text-xs text-zinc-500">当前文件：{importFileName}</p>
+                  ) : null}
+                </div>
+                <label className="inline-flex cursor-pointer items-center justify-center rounded-lg bg-zinc-900 px-4 py-2 text-sm text-white hover:bg-zinc-700">
+                  <input
+                    type="file"
+                    accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    className="hidden"
+                    disabled={importPreviewing || importCommitting}
+                    onChange={handleImportFileChange}
+                  />
+                  {importPreviewing ? "预校验中..." : "选择 Excel 文件"}
+                </label>
+              </div>
+            </div>
+
+            {importResult ? (
+              <div className="mt-4 space-y-4">
+                <div className="grid gap-3 md:grid-cols-4">
+                  <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
+                    <p className="text-xs text-zinc-500">数据行</p>
+                    <p className="mt-2 text-2xl font-semibold">{importResult.summary.dataRows}</p>
+                  </div>
+                  <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4">
+                    <p className="text-xs text-emerald-700">可导入</p>
+                    <p className="mt-2 text-2xl font-semibold text-emerald-700">
+                      {importResult.summary.validRows}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-sky-200 bg-sky-50 p-4">
+                    <p className="text-xs text-sky-700">新增</p>
+                    <p className="mt-2 text-2xl font-semibold text-sky-700">
+                      {importResult.summary.createCount}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+                    <p className="text-xs text-amber-700">更新</p>
+                    <p className="mt-2 text-2xl font-semibold text-amber-700">
+                      {importResult.summary.updateCount}
+                    </p>
+                  </div>
+                </div>
+
+                {importResult.errors.length > 0 ? (
+                  <div className="rounded-xl border border-red-200 bg-red-50 p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h4 className="text-sm font-semibold text-red-700">发现错误</h4>
+                        <p className="mt-1 text-xs text-red-600">
+                          共 {importResult.summary.errorRows} 行有问题，这些行不会被导入。
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 max-h-56 overflow-auto rounded-lg border border-red-100 bg-white">
+                      <table className="w-full min-w-[520px] border-collapse text-sm">
+                        <thead>
+                          <tr className="border-b border-red-100 bg-red-50 text-left text-xs text-red-700">
+                            <th className="px-3 py-2">行号</th>
+                            <th className="px-3 py-2">字段</th>
+                            <th className="px-3 py-2">问题</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {importResult.errors.map((error, index) => (
+                            <tr key={`${error.rowNumber}-${error.field}-${index}`} className="border-b border-zinc-100">
+                              <td className="px-3 py-2">{error.rowNumber}</td>
+                              <td className="px-3 py-2">{error.field}</td>
+                              <td className="px-3 py-2">{error.message}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null}
+
+                {importResult.rows.length > 0 ? (
+                  <div className="rounded-xl border border-zinc-200 bg-white p-4">
+                    <div className="flex items-center justify-between gap-3">
+                      <div>
+                        <h4 className="text-sm font-semibold text-zinc-900">待导入数据预览</h4>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          仅展示前 10 条，可确认无误后执行导入。
+                        </p>
+                      </div>
+                    </div>
+                    <div className="mt-3 overflow-auto">
+                      <table className="w-full min-w-[860px] border-collapse text-sm">
+                        <thead>
+                          <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-wide text-zinc-500">
+                            <th className="py-2 pr-4">行号</th>
+                            <th className="py-2 pr-4">动作</th>
+                            <th className="py-2 pr-4">商品名称</th>
+                            <th className="py-2 pr-4">分类</th>
+                            <th className="py-2 pr-4">单位</th>
+                            <th className="py-2 pr-4">当前库存</th>
+                            <th className="py-2 pr-4">安全库存</th>
+                            <th className="py-2 pr-4">状态</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {importResult.rows.slice(0, 10).map((row) => (
+                            <tr key={`${row.rowNumber}-${row.name}-${row.categoryId}`} className="border-b border-zinc-100">
+                              <td className="py-2 pr-4">{row.rowNumber}</td>
+                              <td className="py-2 pr-4">
+                                <Chip
+                                  size="sm"
+                                  variant="soft"
+                                  color={row.action === "create" ? "success" : "warning"}
+                                >
+                                  {row.action === "create" ? "新增" : "更新"}
+                                </Chip>
+                              </td>
+                              <td className="py-2 pr-4">{row.name}</td>
+                              <td className="py-2 pr-4">{row.categoryName}</td>
+                              <td className="py-2 pr-4">{row.unit}</td>
+                              <td className="py-2 pr-4">{row.currentStock}</td>
+                              <td className="py-2 pr-4">{row.safetyStock}</td>
+                              <td className="py-2 pr-4">{row.isActive ? "启用" : "停用"}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                ) : null}
+              </div>
+            ) : null}
+
+            <div className="mt-5 flex flex-col-reverse justify-end gap-2 sm:flex-row">
+              <Button
+                type="button"
+                className="w-full border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto"
+                onPress={closeImportModal}
+                isDisabled={importPreviewing || importCommitting}
+              >
+                关闭
+              </Button>
+              <Button
+                type="button"
+                className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
+                onPress={() => void handleCommitImport()}
+                isDisabled={
+                  importPreviewing ||
+                  importCommitting ||
+                  !importResult ||
+                  importResult.rows.length === 0
+                }
+              >
+                {importCommitting ? "导入中..." : "确认导入"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       {editOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/35 p-4">

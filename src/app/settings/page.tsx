@@ -4,6 +4,7 @@ import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
 import { Button, Card, Chip, Spinner, Toast } from "@heroui/react";
 import Image, { ImageLoaderProps } from "next/image";
 import { useRouter } from "next/navigation";
+import { clientFetch, isUnauthorizedRedirectError } from "@/lib/auth/client-fetch";
 
 type MeUser = {
   id: string;
@@ -85,13 +86,8 @@ export default function SettingsPage() {
   const loadProfile = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/users/me");
+      const response = await clientFetch("/api/users/me");
       const data = (await response.json()) as { user?: MeUser; message?: string };
-
-      if (response.status === 401) {
-        router.replace("/login");
-        return;
-      }
 
       if (!response.ok) {
         Toast.toast.danger(data.message ?? "加载设置失败");
@@ -106,12 +102,16 @@ export default function SettingsPage() {
       setUser(data.user);
       setUsername(data.user.username);
       setAvatarUrl(data.user.avatarUrl ?? "");
-    } catch {
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       Toast.toast.danger("加载设置失败，请检查网络");
     } finally {
       setLoading(false);
     }
-  }, [router]);
+  }, []);
 
   useEffect(() => {
     void loadProfile();
@@ -142,7 +142,7 @@ export default function SettingsPage() {
     setSavingProfile(true);
 
     try {
-      const response = await fetch("/api/users/me", {
+      const response = await clientFetch("/api/users/me", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ username: username.trim(), avatarUrl: avatarUrl.trim() }),
@@ -171,7 +171,11 @@ export default function SettingsPage() {
       }
 
       Toast.toast.success(data.message ?? "资料已更新");
-    } catch {
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       Toast.toast.danger("保存资料失败，请稍后重试");
     } finally {
       setSavingProfile(false);
@@ -218,7 +222,7 @@ export default function SettingsPage() {
     setSavingPassword(true);
 
     try {
-      const response = await fetch("/api/users/me/password", {
+      const response = await clientFetch("/api/users/me/password", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(passwordForm),
@@ -232,13 +236,20 @@ export default function SettingsPage() {
 
       Toast.toast.success(data.message ?? "密码已更新");
       Toast.toast.warning("密码已变更，请重新登录");
-      await fetch("/api/auth/logout", { method: "POST" });
+      await clientFetch("/api/auth/logout", {
+        method: "POST",
+        redirectOnUnauthorized: false,
+      });
       sessionStorage.removeItem("warehouse_last_password");
       setPasswordForm(initialPasswordForm);
       setPasswordConfirmOpen(false);
       router.replace("/login");
       router.refresh();
-    } catch {
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       Toast.toast.danger("更新密码失败，请稍后重试");
     } finally {
       setSavingPassword(false);

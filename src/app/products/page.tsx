@@ -5,6 +5,7 @@ import imageCompression from "browser-image-compression";
 import { Button, Card, Chip, Spinner, Toast } from "@heroui/react";
 import Image, { ImageLoaderProps } from "next/image";
 import AppSelect from "@/components/app-select";
+import { clientFetch, isUnauthorizedRedirectError } from "@/lib/auth/client-fetch";
 
 type Category = {
   id: string;
@@ -221,20 +222,32 @@ export default function ProductsPage() {
   }, []);
 
   async function loadCurrentUser() {
-    const response = await fetch("/api/auth/me");
-    if (!response.ok) return;
-    const data = (await response.json()) as AuthMeResponse;
-    if (data.user?.role) {
-      setRole(data.user.role);
+    try {
+      const response = await clientFetch("/api/auth/me");
+      if (!response.ok) return;
+      const data = (await response.json()) as AuthMeResponse;
+      if (data.user?.role) {
+        setRole(data.user.role);
+      }
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
     }
   }
 
   async function loadCategories() {
-    const response = await fetch("/api/categories");
-    const data = (await response.json()) as {
-      items?: Category[];
-    };
-    setCategories(data.items ?? []);
+    try {
+      const response = await clientFetch("/api/categories");
+      const data = (await response.json()) as {
+        items?: Category[];
+      };
+      setCategories(data.items ?? []);
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+    }
   }
 
   async function loadProducts() {
@@ -247,7 +260,7 @@ export default function ProductsPage() {
     if (includeInactive) params.set("includeInactive", "true");
 
     try {
-      const response = await fetch(`/api/products?${params.toString()}`);
+      const response = await clientFetch(`/api/products?${params.toString()}`);
       const data = (await response.json()) as {
         items?: Product[];
         message?: string;
@@ -259,7 +272,11 @@ export default function ProductsPage() {
       }
 
       setItems(data.items ?? []);
-    } catch {
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       Toast.toast.danger("加载商品失败，请检查网络");
     } finally {
       setLoading(false);
@@ -270,7 +287,7 @@ async function uploadProductImage(file: File) {
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetch("/api/uploads/product-image", {
+    const response = await clientFetch("/api/uploads/product-image", {
       method: "POST",
       body: formData,
     });
@@ -328,6 +345,10 @@ async function prepareImageForUpload(file: File) {
       setForm((prev) => ({ ...prev, ...uploaded }));
       Toast.toast.success("商品图片上传成功");
     } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       const message = error instanceof Error ? error.message : "上传图片失败";
       Toast.toast.danger(message);
     } finally {
@@ -347,6 +368,10 @@ async function prepareImageForUpload(file: File) {
       setEditForm((prev) => ({ ...prev, ...uploaded }));
       Toast.toast.success("商品图片上传成功");
     } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       const message = error instanceof Error ? error.message : "上传图片失败";
       Toast.toast.danger(message);
     } finally {
@@ -359,7 +384,7 @@ async function prepareImageForUpload(file: File) {
     setSaving(true);
 
     try {
-      const response = await fetch("/api/products", {
+      const response = await clientFetch("/api/products", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(form),
@@ -374,7 +399,11 @@ async function prepareImageForUpload(file: File) {
       Toast.toast.success("商品创建成功");
       setForm(initialForm);
       await loadProducts();
-    } catch {
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       Toast.toast.danger("保存失败，请稍后重试");
     } finally {
       setSaving(false);
@@ -413,7 +442,7 @@ async function prepareImageForUpload(file: File) {
 
     setEditSaving(true);
     try {
-      const response = await fetch(`/api/products/${editId}`, {
+      const response = await clientFetch(`/api/products/${editId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(editForm),
@@ -426,7 +455,11 @@ async function prepareImageForUpload(file: File) {
       Toast.toast.success("商品更新成功");
       closeEditModal();
       await loadProducts();
-    } catch {
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       Toast.toast.danger("更新商品失败，请稍后重试");
     } finally {
       setEditSaving(false);
@@ -445,7 +478,7 @@ async function prepareImageForUpload(file: File) {
     if (!disableTarget) return;
     setDisableSaving(true);
     try {
-      const response = await fetch(`/api/products/${disableTarget.id}`, {
+      const response = await clientFetch(`/api/products/${disableTarget.id}`, {
         method: "DELETE",
       });
       const data = (await response.json()) as { message?: string };
@@ -457,7 +490,11 @@ async function prepareImageForUpload(file: File) {
       Toast.toast.success("商品已停用");
       closeDisableModal();
       await loadProducts();
-    } catch {
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       Toast.toast.danger("停用失败，请稍后重试");
     } finally {
       setDisableSaving(false);

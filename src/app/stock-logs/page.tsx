@@ -3,6 +3,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Button, Card, Chip, Spinner, Toast } from "@heroui/react";
 import AppSelect from "@/components/app-select";
+import { clientFetch, isUnauthorizedRedirectError } from "@/lib/auth/client-fetch";
 
 type Product = {
   id: string;
@@ -95,18 +96,30 @@ export default function StockLogsPage() {
   }, []);
 
   async function loadCurrentUser() {
-    const response = await fetch("/api/auth/me");
-    if (!response.ok) return;
-    const data = (await response.json()) as AuthMeResponse;
-    if (data.user?.role) {
-      setRole(data.user.role);
+    try {
+      const response = await clientFetch("/api/auth/me");
+      if (!response.ok) return;
+      const data = (await response.json()) as AuthMeResponse;
+      if (data.user?.role) {
+        setRole(data.user.role);
+      }
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
     }
   }
 
   async function loadProducts() {
-    const response = await fetch("/api/products");
-    const data = (await response.json()) as { items?: Product[] };
-    setProducts((data.items ?? []).filter((item) => item.isActive));
+    try {
+      const response = await clientFetch("/api/products");
+      const data = (await response.json()) as { items?: Product[] };
+      setProducts((data.items ?? []).filter((item) => item.isActive));
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+    }
   }
 
   async function loadLogs() {
@@ -120,7 +133,7 @@ export default function StockLogsPage() {
     if (dateTo) params.set("dateTo", dateTo);
 
     try {
-      const response = await fetch(`/api/stock-logs?${params.toString()}`);
+      const response = await clientFetch(`/api/stock-logs?${params.toString()}`);
       const data = (await response.json()) as {
         items?: StockLog[];
         message?: string;
@@ -132,7 +145,11 @@ export default function StockLogsPage() {
       }
 
       setItems(data.items ?? []);
-    } catch {
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       Toast.toast.danger("加载库存记录失败，请稍后重试");
     } finally {
       setLoading(false);
@@ -174,7 +191,7 @@ export default function StockLogsPage() {
           };
 
     try {
-      const response = await fetch("/api/stock-logs", {
+      const response = await clientFetch("/api/stock-logs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -190,7 +207,11 @@ export default function StockLogsPage() {
       Toast.toast.success("库存变动已记录");
       setForm((prev) => ({ ...initialCreateForm, productId: prev.productId }));
       await loadLogs();
-    } catch {
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       const message = "提交失败，请稍后重试";
       Toast.toast.danger(message);
     } finally {

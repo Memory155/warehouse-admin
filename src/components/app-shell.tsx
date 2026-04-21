@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ReactNode, useEffect, useState } from "react";
 import { Card, Chip, Toast } from "@heroui/react";
+import { clientFetch, isUnauthorizedRedirectError } from "@/lib/auth/client-fetch";
 import {
   Boxes,
   ChevronLeft,
@@ -62,14 +63,25 @@ export default function AppShell({ children }: AppShellProps) {
     let cancelled = false;
 
     async function loadCurrentUser() {
+      if (!pathname || isPublicPath(pathname)) {
+        if (!cancelled) {
+          setUser(null);
+        }
+        return;
+      }
+
       try {
-        const response = await fetch("/api/auth/me");
+        const response = await clientFetch("/api/auth/me");
         if (!response.ok) return;
         const data = (await response.json()) as { user?: MeUser };
         if (!cancelled) {
           setUser(data.user ?? null);
         }
-      } catch {
+      } catch (error) {
+        if (isUnauthorizedRedirectError(error)) {
+          return;
+        }
+
         if (!cancelled) {
           setUser(null);
         }
@@ -124,7 +136,7 @@ export default function AppShell({ children }: AppShellProps) {
 
   async function handleLogout() {
     try {
-      const response = await fetch("/api/auth/logout", { method: "POST" });
+      const response = await clientFetch("/api/auth/logout", { method: "POST" });
       if (!response.ok) {
         Toast.toast.danger("退出登录失败，请稍后重试");
         return;
@@ -133,7 +145,11 @@ export default function AppShell({ children }: AppShellProps) {
       Toast.toast.success("已退出登录");
       router.replace("/login");
       router.refresh();
-    } catch {
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       Toast.toast.danger("网络异常，退出登录失败");
     }
   }

@@ -334,7 +334,14 @@ export default function ProductsPage() {
     return params;
   }
 
-  async function downloadExcel(url: string, fallbackName: string) {
+  function formatExportDate(date: Date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, "0");
+    const day = String(date.getDate()).padStart(2, "0");
+    return `${year}-${month}-${day}`;
+  }
+
+  async function downloadExcel(url: string, fileName: string) {
     const response = await clientFetch(url);
     if (!response.ok) {
       const data = (await response.json().catch(() => null)) as { message?: string } | null;
@@ -344,11 +351,9 @@ export default function ProductsPage() {
     const blob = await response.blob();
     const objectUrl = window.URL.createObjectURL(blob);
     const anchor = document.createElement("a");
-    const disposition = response.headers.get("Content-Disposition");
-    const matchedName = disposition?.match(/filename="?([^"]+)"?/i)?.[1];
 
     anchor.href = objectUrl;
-    anchor.download = matchedName ?? fallbackName;
+    anchor.download = fileName;
     document.body.appendChild(anchor);
     anchor.click();
     anchor.remove();
@@ -370,9 +375,10 @@ export default function ProductsPage() {
     setExporting(true);
     try {
       const params = getProductFilterParams();
+      const fileName = `${formatExportDate(new Date())}-商品导出.xlsx`;
       await downloadExcel(
         `/api/products/export?${params.toString()}`,
-        "warehouse-products-export.xlsx",
+        fileName,
       );
       Toast.toast.success("商品 Excel 已开始下载");
     } catch (error) {
@@ -392,7 +398,7 @@ export default function ProductsPage() {
     try {
       await downloadExcel(
         "/api/products/import-template",
-        "warehouse-products-import-template.xlsx",
+        "商品导入模版.xlsx",
       );
       Toast.toast.success("导入模板已开始下载");
     } catch (error) {

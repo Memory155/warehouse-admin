@@ -5,6 +5,7 @@ import Image, { ImageLoaderProps } from "next/image";
 import { useRouter } from "next/navigation";
 import { Button, Card, Chip, Spinner, Toast } from "@heroui/react";
 import AppSelect from "@/components/app-select";
+import { clientFetch, isUnauthorizedRedirectError } from "@/lib/auth/client-fetch";
 
 type Role = "SUPER_ADMIN" | "ADMIN" | "USER";
 type UserStatus = "ACTIVE" | "DISABLED";
@@ -104,16 +105,11 @@ export default function UsersPage() {
     setLoading(true);
 
     try {
-      const meResponse = await fetch("/api/auth/me");
+      const meResponse = await clientFetch("/api/auth/me");
       const meData = (await meResponse.json()) as {
         user?: CurrentUser;
         message?: string;
       };
-
-      if (meResponse.status === 401) {
-        router.replace("/login");
-        return;
-      }
 
       if (!meResponse.ok || !meData.user) {
         Toast.toast.danger(meData.message ?? "加载用户信息失败");
@@ -129,7 +125,7 @@ export default function UsersPage() {
 
       setCurrentUser(meData.user);
 
-      const usersResponse = await fetch("/api/users");
+      const usersResponse = await clientFetch("/api/users");
       const usersData = (await usersResponse.json()) as {
         items?: ManagedUser[];
         message?: string;
@@ -141,7 +137,11 @@ export default function UsersPage() {
       }
 
       setUsers(usersData.items ?? []);
-    } catch {
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       Toast.toast.danger("加载用户管理数据失败，请稍后重试");
     } finally {
       setLoading(false);
@@ -170,7 +170,7 @@ export default function UsersPage() {
 
     setCreating(true);
     try {
-      const response = await fetch("/api/users", {
+      const response = await clientFetch("/api/users", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -191,7 +191,11 @@ export default function UsersPage() {
       Toast.toast.success(data.message ?? "用户创建成功");
       setCreateForm(initialCreateForm);
       await loadData();
-    } catch {
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       Toast.toast.danger("创建用户失败，请稍后重试");
     } finally {
       setCreating(false);
@@ -240,7 +244,7 @@ export default function UsersPage() {
 
     setEditing(true);
     try {
-      const response = await fetch(`/api/users/${editForm.id}`, {
+      const response = await clientFetch(`/api/users/${editForm.id}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -261,7 +265,11 @@ export default function UsersPage() {
       Toast.toast.success(data.message ?? "用户信息已更新");
       closeEditModal();
       await loadData();
-    } catch {
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       Toast.toast.danger("更新用户失败，请稍后重试");
     } finally {
       setEditing(false);
@@ -294,7 +302,7 @@ export default function UsersPage() {
     setOrdering(true);
 
     try {
-      const response = await fetch("/api/users/order", {
+      const response = await clientFetch("/api/users/order", {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({

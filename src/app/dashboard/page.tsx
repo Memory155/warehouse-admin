@@ -1,8 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
 import { Card, Chip, Spinner } from "@heroui/react";
+import { clientFetch, isUnauthorizedRedirectError } from "@/lib/auth/client-fetch";
 
 type DashboardSummary = {
   productCount: number;
@@ -45,7 +45,6 @@ function typeLabel(type: RecentLog["type"]) {
 }
 
 export default function DashboardPage() {
-  const router = useRouter();
   const [user, setUser] = useState<AuthUser | null>(null);
   const [summary, setSummary] = useState<DashboardSummary | null>(null);
   const [recentLogs, setRecentLogs] = useState<RecentLog[]>([]);
@@ -54,7 +53,6 @@ export default function DashboardPage() {
 
   useEffect(() => {
     void loadData();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   async function loadData() {
@@ -63,14 +61,9 @@ export default function DashboardPage() {
 
     try {
       const [meResponse, summaryResponse] = await Promise.all([
-        fetch("/api/auth/me"),
-        fetch("/api/dashboard/summary"),
+        clientFetch("/api/auth/me"),
+        clientFetch("/api/dashboard/summary"),
       ]);
-
-      if (meResponse.status === 401) {
-        router.replace("/login");
-        return;
-      }
 
       if (meResponse.ok) {
         const meData = (await meResponse.json()) as { user?: AuthUser };
@@ -92,7 +85,11 @@ export default function DashboardPage() {
 
       setSummary(summaryData.summary ?? null);
       setRecentLogs(summaryData.recentLogs ?? []);
-    } catch {
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       setError("加载失败，请稍后重试");
     } finally {
       setLoading(false);

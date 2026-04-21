@@ -2,6 +2,7 @@
 
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { Button, Card, Chip, Spinner, Toast } from "@heroui/react";
+import { clientFetch, isUnauthorizedRedirectError } from "@/lib/auth/client-fetch";
 
 type Category = {
   id: string;
@@ -44,18 +45,24 @@ export default function CategoriesPage() {
   }, []);
 
   async function loadCurrentUser() {
-    const response = await fetch("/api/auth/me");
-    if (!response.ok) return;
-    const data = (await response.json()) as AuthMeResponse;
-    if (data.user?.role) {
-      setRole(data.user.role);
+    try {
+      const response = await clientFetch("/api/auth/me");
+      if (!response.ok) return;
+      const data = (await response.json()) as AuthMeResponse;
+      if (data.user?.role) {
+        setRole(data.user.role);
+      }
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
     }
   }
 
   async function loadItems() {
     setLoading(true);
     try {
-      const response = await fetch("/api/categories?includeInactive=true");
+      const response = await clientFetch("/api/categories?includeInactive=true");
       const data = (await response.json()) as {
         items?: Category[];
         message?: string;
@@ -65,7 +72,11 @@ export default function CategoriesPage() {
         return;
       }
       setItems(data.items ?? []);
-    } catch {
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       Toast.toast.danger("加载分类失败，请检查网络");
     } finally {
       setLoading(false);
@@ -80,7 +91,7 @@ export default function CategoriesPage() {
     const payload = { name: name.trim(), sort: maxSort + 10 };
 
     try {
-      const response = await fetch("/api/categories", {
+      const response = await clientFetch("/api/categories", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -96,7 +107,11 @@ export default function CategoriesPage() {
       Toast.toast.success("分类创建成功");
       setName("");
       await loadItems();
-    } catch {
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       const message = "保存失败，请稍后重试";
       Toast.toast.danger(message);
     } finally {
@@ -140,7 +155,7 @@ export default function CategoriesPage() {
 
       const responses = await Promise.all(
         updates.map((item) =>
-          fetch(`/api/categories/${item.id}`, {
+          clientFetch(`/api/categories/${item.id}`, {
             method: "PATCH",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({ name: item.name, sort: item.sort }),
@@ -187,7 +202,7 @@ export default function CategoriesPage() {
     const payload = { name: editName.trim(), sort: Number(editSort) || 0 };
 
     try {
-      const response = await fetch(`/api/categories/${editId}`, {
+      const response = await clientFetch(`/api/categories/${editId}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
@@ -200,7 +215,11 @@ export default function CategoriesPage() {
       Toast.toast.success("分类更新成功");
       closeEditModal();
       await loadItems();
-    } catch {
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       Toast.toast.danger("更新分类失败，请稍后重试");
     } finally {
       setEditSaving(false);
@@ -219,7 +238,7 @@ export default function CategoriesPage() {
     if (!disableTarget) return;
     setDisableSaving(true);
     try {
-      const response = await fetch(`/api/categories/${disableTarget.id}`, {
+      const response = await clientFetch(`/api/categories/${disableTarget.id}`, {
         method: "DELETE",
       });
       const data = (await response.json()) as { message?: string };
@@ -233,7 +252,11 @@ export default function CategoriesPage() {
       Toast.toast.success("分类已停用");
       closeDisableModal();
       await loadItems();
-    } catch {
+    } catch (error) {
+      if (isUnauthorizedRedirectError(error)) {
+        return;
+      }
+
       const message = "停用失败，请稍后重试";
       Toast.toast.danger(message);
     } finally {

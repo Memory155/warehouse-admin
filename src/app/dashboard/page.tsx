@@ -98,87 +98,127 @@ export default function DashboardPage() {
 
   return (
     <div className="w-full space-y-4">
-        <Card className="border border-zinc-200/70 shadow-sm">
-          <Card.Header>
-          <div>
-            <h1 className="text-xl font-semibold sm:text-2xl">首页</h1>
-            <p className="mt-1 text-sm text-zinc-600">
-              你好，{user?.username ?? "-"}（{user?.role ?? "-"}）
-            </p>
+      <Card className="border border-zinc-200/70 shadow-sm">
+        <Card.Content>
+          <div className="flex items-center justify-between gap-3 py-1">
+            <div className="min-w-0">
+              <h1 className="text-lg font-semibold sm:text-2xl">首页</h1>
+              <p className="mt-1 truncate text-xs text-zinc-600 sm:text-sm">
+                你好，{user?.username ?? "-"}
+              </p>
+            </div>
+            <Chip size="sm" variant="soft" color="default">
+              {user?.role ?? "-"}
+            </Chip>
           </div>
-          </Card.Header>
+        </Card.Content>
+      </Card>
+
+      {loading ? (
+        <Card className="border border-zinc-200/70 shadow-sm">
+          <Card.Content>
+            <div className="flex items-center gap-2 text-sm text-zinc-600">
+              <Spinner size="sm" />
+              加载看板数据中...
+            </div>
+          </Card.Content>
         </Card>
+      ) : null}
 
-        {loading ? (
-          <Card className="border border-zinc-200/70 shadow-sm">
-            <Card.Content>
-              <div className="flex items-center gap-2 text-sm text-zinc-600">
-                <Spinner size="sm" />
-                加载看板数据中...
-              </div>
-            </Card.Content>
-          </Card>
-        ) : null}
-
-        {error ? (
-          <Card className="border border-red-200 bg-red-50 shadow-sm">
-            <Card.Content>
+      {error ? (
+        <Card className="border border-red-200 bg-red-50 shadow-sm">
+          <Card.Content>
             <p className="text-sm text-red-600">{error}</p>
+          </Card.Content>
+        </Card>
+      ) : null}
+
+      {summary ? (
+        <section className="grid grid-cols-2 gap-3 lg:grid-cols-5">
+          <Card className="border border-zinc-200/70 shadow-sm">
+            <Card.Content className="p-3 sm:p-5">
+              <p className="text-[11px] text-zinc-500 sm:text-xs">商品总数</p>
+              <p className="mt-1 text-xl font-semibold sm:mt-2 sm:text-2xl">
+                {summary.productCount}
+              </p>
             </Card.Content>
           </Card>
-        ) : null}
-
-        {summary ? (
-          <section className="grid gap-4 sm:grid-cols-2 lg:grid-cols-5">
-            <Card className="border border-zinc-200/70 shadow-sm">
-              <Card.Content>
-              <p className="text-xs text-zinc-500">商品总数</p>
-              <p className="mt-2 text-2xl font-semibold">{summary.productCount}</p>
-              </Card.Content>
-            </Card>
-            <Card className="border border-zinc-200/70 shadow-sm">
-              <Card.Content>
-              <p className="text-xs text-zinc-500">分类总数</p>
-              <p className="mt-2 text-2xl font-semibold">{summary.categoriesCount}</p>
-              </Card.Content>
-            </Card>
-            <Card className="border border-amber-200/80 bg-amber-50/60 shadow-sm">
-              <Card.Content>
-              <p className="text-xs text-zinc-500">低库存商品</p>
-              <p className="mt-2 text-2xl font-semibold text-amber-700">
+          <Card className="border border-zinc-200/70 shadow-sm">
+            <Card.Content className="p-3 sm:p-5">
+              <p className="text-[11px] text-zinc-500 sm:text-xs">分类总数</p>
+              <p className="mt-1 text-xl font-semibold sm:mt-2 sm:text-2xl">
+                {summary.categoriesCount}
+              </p>
+            </Card.Content>
+          </Card>
+          <Card className="border border-amber-200/80 bg-amber-50/60 shadow-sm">
+            <Card.Content className="p-3 sm:p-5">
+              <p className="text-[11px] text-zinc-500 sm:text-xs">低库存商品</p>
+              <p className="mt-1 text-xl font-semibold text-amber-700 sm:mt-2 sm:text-2xl">
                 {summary.lowStockCount}
               </p>
-              </Card.Content>
-            </Card>
-            <Card className="border border-red-200/80 bg-red-50/60 shadow-sm">
-              <Card.Content>
-              <p className="text-xs text-zinc-500">缺货商品</p>
-              <p className="mt-2 text-2xl font-semibold text-red-700">
+            </Card.Content>
+          </Card>
+          <Card className="border border-red-200/80 bg-red-50/60 shadow-sm">
+            <Card.Content className="p-3 sm:p-5">
+              <p className="text-[11px] text-zinc-500 sm:text-xs">缺货商品</p>
+              <p className="mt-1 text-xl font-semibold text-red-700 sm:mt-2 sm:text-2xl">
                 {summary.outStockCount}
               </p>
-              </Card.Content>
-            </Card>
-            <Card className="border border-zinc-200/70 shadow-sm">
-              <Card.Content>
-              <p className="text-xs text-zinc-500">今日变动次数</p>
-              <p className="mt-2 text-2xl font-semibold">{summary.todayLogCount}</p>
-              </Card.Content>
-            </Card>
-          </section>
-        ) : null}
+            </Card.Content>
+          </Card>
+          <Card className="col-span-2 border border-zinc-200/70 shadow-sm lg:col-span-1">
+            <Card.Content className="p-3 sm:p-5">
+              <p className="text-[11px] text-zinc-500 sm:text-xs">今日变动次数</p>
+              <p className="mt-1 text-xl font-semibold sm:mt-2 sm:text-2xl">
+                {summary.todayLogCount}
+              </p>
+            </Card.Content>
+          </Card>
+        </section>
+      ) : null}
 
-        <Card className="border border-zinc-200/70 shadow-sm">
-          <Card.Header className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
+      <Card className="border border-zinc-200/70 shadow-sm">
+        <Card.Header className="flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between">
           <h2 className="text-lg font-medium">最近库存变动</h2>
           <Chip size="sm" variant="soft" color="default">
             最近 10 条
           </Chip>
-          </Card.Header>
-          <Card.Content>
+        </Card.Header>
+        <Card.Content>
           {recentLogs.length === 0 ? (
             <p className="mt-3 text-sm text-zinc-600">暂无记录</p>
           ) : (
-            <div className="mt-3 overflow-x-auto">
+            <>
+              <div className="mt-3 space-y-2 sm:hidden">
+                {recentLogs.map((item) => (
+                  <div
+                    key={item.id}
+                    className="rounded-xl border border-zinc-200 bg-zinc-50 px-3 py-3"
+                  >
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="truncate text-sm font-medium text-zinc-900">
+                          {item.product.name}
+                        </p>
+                        <p className="mt-1 text-xs text-zinc-500">
+                          {item.product.unit} | {item.operator.username}
+                        </p>
+                      </div>
+                      <Chip size="sm" variant="soft" color="default">
+                        {typeLabel(item.type)}
+                      </Chip>
+                    </div>
+                    <div className="mt-2 flex items-center justify-between gap-3 text-xs text-zinc-600">
+                      <span>{new Date(item.createdAt).toLocaleString()}</span>
+                      <span>
+                        {Number(item.beforeStock)} -&gt; {Number(item.afterStock)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+              <div className="mt-3 hidden overflow-x-auto sm:block">
               <table className="w-full min-w-[760px] border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-zinc-200 text-left text-zinc-600">
@@ -209,10 +249,11 @@ export default function DashboardPage() {
                   ))}
                 </tbody>
               </table>
-            </div>
+              </div>
+            </>
           )}
-          </Card.Content>
-        </Card>
-      </div>
+        </Card.Content>
+      </Card>
+    </div>
   );
 }

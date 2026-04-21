@@ -240,6 +240,7 @@ export default function ProductsPage() {
   const [disableSaving, setDisableSaving] = useState(false);
   const [exporting, setExporting] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [templateDownloading, setTemplateDownloading] = useState(false);
   const [importPreviewing, setImportPreviewing] = useState(false);
   const [importCommitting, setImportCommitting] = useState(false);
   const [importFileName, setImportFileName] = useState("");
@@ -386,6 +387,7 @@ export default function ProductsPage() {
   }
 
   async function handleDownloadImportTemplate() {
+    setTemplateDownloading(true);
     try {
       await downloadExcel(
         "/api/products/import-template",
@@ -399,6 +401,8 @@ export default function ProductsPage() {
 
       const message = error instanceof Error ? error.message : "下载模板失败";
       Toast.toast.danger(message);
+    } finally {
+      setTemplateDownloading(false);
     }
   }
 
@@ -718,10 +722,10 @@ async function prepareImageForUpload(file: File) {
               共 {items.length} 个商品，低库存 {lowStockCount} 个，缺货 {outCount} 个
             </p>
           </div>
-          <div className="flex w-full flex-col gap-2 sm:w-auto sm:flex-row">
+          <div className="flex w-full flex-row gap-2 sm:w-auto">
             <Button
               type="button"
-              className="w-full border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto"
+              className="min-w-0 flex-1 border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto sm:flex-none"
               onPress={() => void handleExportProducts()}
               isDisabled={exporting}
             >
@@ -730,7 +734,7 @@ async function prepareImageForUpload(file: File) {
             {isAdmin ? (
               <Button
                 type="button"
-                className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
+                className="min-w-0 flex-1 bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto sm:flex-none"
                 onPress={() => setImportOpen(true)}
               >
                 导入 Excel
@@ -1071,9 +1075,9 @@ async function prepareImageForUpload(file: File) {
                 type="button"
                 className="border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
                 onPress={() => void handleDownloadImportTemplate()}
-                isDisabled={importPreviewing || importCommitting}
+                isDisabled={templateDownloading || importPreviewing || importCommitting}
               >
-                下载模板
+                {templateDownloading ? "下载中..." : "下载模板"}
               </Button>
             </div>
 
@@ -1093,7 +1097,7 @@ async function prepareImageForUpload(file: File) {
                     type="file"
                     accept=".xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     className="hidden"
-                    disabled={importPreviewing || importCommitting}
+                    disabled={templateDownloading || importPreviewing || importCommitting}
                     onChange={handleImportFileChange}
                   />
                   {importPreviewing ? "预校验中..." : "选择 Excel 文件"}
@@ -1103,7 +1107,7 @@ async function prepareImageForUpload(file: File) {
 
             {importResult ? (
               <div className="mt-4 space-y-4">
-                <div className="grid gap-3 md:grid-cols-4">
+                <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
                   <div className="rounded-xl border border-zinc-200 bg-zinc-50 p-4">
                     <p className="text-xs text-zinc-500">数据行</p>
                     <p className="mt-2 text-2xl font-semibold">{importResult.summary.dataRows}</p>
@@ -1214,20 +1218,21 @@ async function prepareImageForUpload(file: File) {
               </div>
             ) : null}
 
-            <div className="mt-5 flex flex-col-reverse justify-end gap-2 sm:flex-row">
+            <div className="mt-5 flex flex-row justify-end gap-2">
               <Button
                 type="button"
-                className="w-full border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto"
+                className="min-w-0 flex-1 border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto sm:flex-none"
                 onPress={closeImportModal}
-                isDisabled={importPreviewing || importCommitting}
+                isDisabled={templateDownloading || importPreviewing || importCommitting}
               >
                 关闭
               </Button>
               <Button
                 type="button"
-                className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
+                className="min-w-0 flex-1 bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto sm:flex-none"
                 onPress={() => void handleCommitImport()}
                 isDisabled={
+                  templateDownloading ||
                   importPreviewing ||
                   importCommitting ||
                   !importResult ||

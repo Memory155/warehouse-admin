@@ -229,6 +229,7 @@ export default function ProductsPage() {
   const [role, setRole] = useState<"SUPER_ADMIN" | "ADMIN" | "USER">("USER");
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [createOpen, setCreateOpen] = useState(false);
   const [createImageUploading, setCreateImageUploading] = useState(false);
   const [editOpen, setEditOpen] = useState(false);
   const [editSaving, setEditSaving] = useState(false);
@@ -600,6 +601,7 @@ async function prepareImageForUpload(file: File) {
 
       Toast.toast.success("商品创建成功");
       setForm(initialForm);
+      setCreateOpen(false);
       await loadProducts();
     } catch (error) {
       if (isUnauthorizedRedirectError(error)) {
@@ -610,6 +612,19 @@ async function prepareImageForUpload(file: File) {
     } finally {
       setSaving(false);
     }
+  }
+
+  function openCreateModal() {
+    setForm(initialForm);
+    setCreateImageUploading(false);
+    setCreateOpen(true);
+  }
+
+  function closeCreateModal() {
+    if (saving || createImageUploading) return;
+    setCreateOpen(false);
+    setForm(initialForm);
+    setCreateImageUploading(false);
   }
 
   function startEdit(item: Product) {
@@ -715,38 +730,27 @@ async function prepareImageForUpload(file: File) {
   return (
     <div className="w-full space-y-4">
       <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
-        <Card.Header className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-xl font-semibold sm:text-2xl">商品管理</h1>
-            <p className="mt-1 text-sm text-zinc-600">
-              共 {items.length} 个商品，低库存 {lowStockCount} 个，缺货 {outCount} 个
-            </p>
-          </div>
-          <div className="flex w-full flex-row gap-2 sm:w-auto">
-            <Button
-              type="button"
-              className="min-w-0 flex-1 border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto sm:flex-none"
-              onPress={() => void handleExportProducts()}
-              isDisabled={exporting}
-            >
-              {exporting ? "导出中..." : "导出 Excel"}
-            </Button>
-            {isAdmin ? (
-              <Button
-                type="button"
-                className="min-w-0 flex-1 bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto sm:flex-none"
-                onPress={() => setImportOpen(true)}
-              >
-                导入 Excel
-              </Button>
-            ) : null}
-          </div>
+        <Card.Header>
+          <h1 className="text-xl font-semibold sm:text-2xl">商品管理</h1>
+          <p className="mt-1 text-sm text-zinc-600">
+            共 {items.length} 个商品，低库存 {lowStockCount} 个，缺货 {outCount} 个
+          </p>
         </Card.Header>
       </Card>
 
       <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
-        <Card.Header>
+        <Card.Header className="!flex-row items-center justify-between gap-3">
           <h2 className="text-lg font-medium">筛选</h2>
+          {isAdmin ? (
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 shrink-0 px-3 bg-zinc-900 text-sm text-white hover:bg-zinc-700 sm:h-9 sm:px-4"
+              onPress={openCreateModal}
+            >
+              新增商品
+            </Button>
+          ) : null}
         </Card.Header>
         <Card.Content>
           <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
@@ -804,137 +808,36 @@ async function prepareImageForUpload(file: File) {
       </Card>
 
       <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
-        <Card.Header>
-          <h2 className="text-lg font-medium">新增商品</h2>
-        </Card.Header>
-        <Card.Content>
-          {!isAdmin ? (
-            <p className="mt-2 text-sm text-zinc-500">
-              当前账号是 USER，仅可查看，不能新增/编辑/停用。
-            </p>
-          ) : null}
-
-          <form
-            className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4"
-            onSubmit={handleCreateSubmit}
-          >
-            <label className="md:col-span-2">
-              <textarea
-                className="block w-full resize-none rounded-md border border-zinc-300 px-3 py-3 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100"
-                placeholder="请输入商品名称"
-                rows={7}
-                value={form.name}
-                onChange={(event) =>
-                  setForm((prev) => ({ ...prev, name: event.target.value }))
-                }
-                disabled={!isAdmin || saving}
-                required
-              />
-            </label>
-            <ProductImageField
-              title="商品主图"
-              form={form}
-              disabled={!isAdmin || saving}
-              uploading={createImageUploading}
-              onPreview={setPreviewImageUrl}
-              onChange={handleCreateImageChange}
-              onClear={() => setForm((prev) => clearImageFields(prev))}
-            />
-            <AppSelect
-              value={form.categoryId}
-              onChange={(value) =>
-                setForm((prev) => ({ ...prev, categoryId: value }))
-              }
-              placeholder="选择分类"
-              disabled={!isAdmin || saving}
-              options={categories.map((item) => ({ value: item.id, label: item.name }))}
-            />
-            <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100"
-              placeholder="单位（个/包/瓶）"
-              value={form.unit}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, unit: event.target.value }))
-              }
-              disabled={!isAdmin || saving}
-              required
-            />
-            <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100"
-              placeholder="规格（可选）"
-              value={form.spec}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, spec: event.target.value }))
-              }
-              disabled={!isAdmin || saving}
-            />
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100"
-              placeholder="当前库存"
-              value={form.currentStock === 0 ? "" : form.currentStock}
-              onChange={(event) =>
-                setForm((prev) => ({
-                  ...prev,
-                  currentStock: event.target.value === "" ? 0 : Number(event.target.value),
-                }))
-              }
-              disabled={!isAdmin || saving}
-              required
-            />
-            <input
-              type="number"
-              min={0}
-              step="0.01"
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100"
-              placeholder="安全库存"
-              value={form.safetyStock === 0 ? "" : form.safetyStock}
-              onChange={(event) =>
-                setForm((prev) => ({
-                  ...prev,
-                  safetyStock: event.target.value === "" ? 0 : Number(event.target.value),
-                }))
-              }
-              disabled={!isAdmin || saving}
-              required
-            />
-            <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100 md:col-span-2"
-              placeholder="存放位置（可选）"
-              value={form.location}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, location: event.target.value }))
-              }
-              disabled={!isAdmin || saving}
-            />
-            <textarea
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100 md:col-span-2 xl:col-span-4"
-              placeholder="备注（可选）"
-              rows={3}
-              value={form.remark}
-              onChange={(event) =>
-                setForm((prev) => ({ ...prev, remark: event.target.value }))
-              }
-              disabled={!isAdmin || saving}
-            />
-            <div className="flex flex-col gap-2 md:col-span-2 xl:col-span-4 sm:flex-row">
+        <Card.Header className="!flex-row items-start justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-medium">商品列表</h2>
+            {!isAdmin ? (
+              <p className="mt-1 text-sm text-zinc-500">
+                当前账号是 USER，仅可查看，不能新增/编辑/停用。
+              </p>
+            ) : null}
+          </div>
+          <div className="flex shrink-0 flex-row gap-2">
+            <Button
+              type="button"
+              size="sm"
+              className="h-8 shrink-0 px-3 border border-zinc-300 bg-white text-sm text-zinc-800 hover:bg-zinc-50 sm:h-9 sm:px-4"
+              onPress={() => void handleExportProducts()}
+              isDisabled={exporting}
+            >
+              {exporting ? "导出中..." : "导出 Excel"}
+            </Button>
+            {isAdmin ? (
               <Button
-                type="submit"
-                className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
-                isDisabled={!isAdmin || saving || createImageUploading}
+                type="button"
+                size="sm"
+                className="h-8 shrink-0 px-3 bg-zinc-900 text-sm text-white hover:bg-zinc-700 sm:h-9 sm:px-4"
+                onPress={() => setImportOpen(true)}
               >
-                {saving ? "保存中..." : "创建商品"}
+                导入 Excel
               </Button>
-            </div>
-          </form>
-        </Card.Content>
-      </Card>
-
-      <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
-        <Card.Header>
-          <h2 className="text-lg font-medium">商品列表</h2>
+            ) : null}
+          </div>
         </Card.Header>
         <Card.Content>
           {loading ? (
@@ -1060,6 +963,145 @@ async function prepareImageForUpload(file: File) {
           )}
         </Card.Content>
       </Card>
+
+      {createOpen ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/35 p-4">
+          <div className="max-h-[calc(100vh-2rem)] w-full max-w-4xl overflow-y-auto rounded-xl border border-zinc-200 bg-white p-5 shadow-xl">
+            <div className="flex items-start justify-between gap-3">
+              <div>
+                <h3 className="text-lg font-semibold">新增商品</h3>
+                <p className="mt-1 text-sm text-zinc-600">
+                  填写商品基础信息后保存，图片可选上传。
+                </p>
+              </div>
+            </div>
+
+            <form
+              className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-4"
+              onSubmit={handleCreateSubmit}
+            >
+              <label className="md:col-span-2">
+                <textarea
+                  className="block w-full resize-none rounded-md border border-zinc-300 px-3 py-3 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100"
+                  placeholder="请输入商品名称"
+                  rows={7}
+                  value={form.name}
+                  onChange={(event) =>
+                    setForm((prev) => ({ ...prev, name: event.target.value }))
+                  }
+                  disabled={!isAdmin || saving}
+                  required
+                />
+              </label>
+              <ProductImageField
+                title="商品主图"
+                form={form}
+                disabled={!isAdmin || saving}
+                uploading={createImageUploading}
+                onPreview={setPreviewImageUrl}
+                onChange={handleCreateImageChange}
+                onClear={() => setForm((prev) => clearImageFields(prev))}
+              />
+              <AppSelect
+                value={form.categoryId}
+                onChange={(value) =>
+                  setForm((prev) => ({ ...prev, categoryId: value }))
+                }
+                placeholder="选择分类"
+                disabled={!isAdmin || saving}
+                options={categories.map((item) => ({ value: item.id, label: item.name }))}
+              />
+              <input
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100"
+                placeholder="单位（个/包/瓶）"
+                value={form.unit}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, unit: event.target.value }))
+                }
+                disabled={!isAdmin || saving}
+                required
+              />
+              <input
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100"
+                placeholder="规格（可选）"
+                value={form.spec}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, spec: event.target.value }))
+                }
+                disabled={!isAdmin || saving}
+              />
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100"
+                placeholder="当前库存"
+                value={form.currentStock === 0 ? "" : form.currentStock}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    currentStock: event.target.value === "" ? 0 : Number(event.target.value),
+                  }))
+                }
+                disabled={!isAdmin || saving}
+                required
+              />
+              <input
+                type="number"
+                min={0}
+                step="0.01"
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100"
+                placeholder="安全库存"
+                value={form.safetyStock === 0 ? "" : form.safetyStock}
+                onChange={(event) =>
+                  setForm((prev) => ({
+                    ...prev,
+                    safetyStock: event.target.value === "" ? 0 : Number(event.target.value),
+                  }))
+                }
+                disabled={!isAdmin || saving}
+                required
+              />
+              <input
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100 md:col-span-2"
+                placeholder="存放位置（可选）"
+                value={form.location}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, location: event.target.value }))
+                }
+                disabled={!isAdmin || saving}
+              />
+              <textarea
+                className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600 disabled:bg-zinc-100 md:col-span-2 xl:col-span-4"
+                placeholder="备注（可选）"
+                rows={3}
+                value={form.remark}
+                onChange={(event) =>
+                  setForm((prev) => ({ ...prev, remark: event.target.value }))
+                }
+                disabled={!isAdmin || saving}
+              />
+              <div className="flex flex-col-reverse justify-end gap-2 md:col-span-2 xl:col-span-4 sm:flex-row">
+                <Button
+                  type="button"
+                  className="w-full border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50 sm:w-auto"
+                  onPress={closeCreateModal}
+                  isDisabled={saving || createImageUploading}
+                >
+                  取消
+                </Button>
+                <Button
+                  type="submit"
+                  className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
+                  isDisabled={!isAdmin || saving || createImageUploading}
+                >
+                  {saving ? "保存中..." : "创建商品"}
+                </Button>
+              </div>
+            </form>
+          </div>
+        </div>
+      ) : null}
 
       {importOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-900/35 p-4">

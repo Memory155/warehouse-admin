@@ -942,7 +942,7 @@ async function prepareImageForUpload(file: File) {
                         <td className="py-2 pr-4">
                           <Chip
                             size="sm"
-                            variant="bordered"
+                            variant="soft"
                             className={getCategoryTagClass(item.category.id, item.category.name)}
                           >
                             {item.category.name}
@@ -1292,7 +1292,7 @@ async function prepareImageForUpload(file: File) {
                               <td className="py-2 pr-4">
                                 <Chip
                                   size="sm"
-                                  variant="bordered"
+                                  variant="soft"
                                   className={getCategoryTagClass(row.categoryId, row.categoryName)}
                                 >
                                   {row.categoryName}

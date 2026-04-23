@@ -853,7 +853,7 @@ async function prepareImageForUpload(file: File) {
             </div>
           ) : (
             <div className="mt-3 overflow-x-auto">
-              <table className="w-full min-w-[920px] border-collapse text-sm">
+              <table className="w-full min-w-[1040px] border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-wide text-zinc-500">
                     <th className="py-2 pr-4">商品</th>
@@ -861,6 +861,7 @@ async function prepareImageForUpload(file: File) {
                     <th className="py-2 pr-4">库存</th>
                     <th className="py-2 pr-4">安全库存</th>
                     <th className="py-2 pr-4">单位</th>
+                    <th className="py-2 pr-4">备注</th>
                     <th className="py-2 pr-4">状态</th>
                     <th className="py-2 pr-4">更新时间</th>
                     <th className="py-2">操作</th>
@@ -869,7 +870,7 @@ async function prepareImageForUpload(file: File) {
                 <tbody>
                   {items.length === 0 ? (
                     <tr>
-                      <td className="py-10 text-center text-zinc-500" colSpan={8}>
+                      <td className="py-10 text-center text-zinc-500" colSpan={9}>
                         没有匹配的商品，试试调整筛选条件。
                       </td>
                     </tr>
@@ -914,6 +915,7 @@ async function prepareImageForUpload(file: File) {
                         <td className="py-2 pr-4">{toNumber(item.currentStock)}</td>
                         <td className="py-2 pr-4">{toNumber(item.safetyStock)}</td>
                         <td className="py-2 pr-4">{item.unit}</td>
+                        <td className="py-2 pr-4 text-zinc-600">{item.remark || "-"}</td>
                         <td className="py-2 pr-4">
                           {!item.isActive ? (
                             <Chip size="sm" variant="soft" color="default">

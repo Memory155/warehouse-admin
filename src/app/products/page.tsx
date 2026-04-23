@@ -120,8 +120,36 @@ const compressionOptions = {
   alwaysKeepResolution: false,
 };
 
+const categoryTagPalette = [
+  "border-sky-200 bg-sky-50 text-sky-700",
+  "border-emerald-200 bg-emerald-50 text-emerald-700",
+  "border-amber-200 bg-amber-50 text-amber-700",
+  "border-rose-200 bg-rose-50 text-rose-700",
+  "border-violet-200 bg-violet-50 text-violet-700",
+  "border-cyan-200 bg-cyan-50 text-cyan-700",
+  "border-lime-200 bg-lime-50 text-lime-700",
+  "border-orange-200 bg-orange-50 text-orange-700",
+  "border-fuchsia-200 bg-fuchsia-50 text-fuchsia-700",
+  "border-teal-200 bg-teal-50 text-teal-700",
+] as const;
+
 function toNumber(value: string | number) {
   return Number(value);
+}
+
+function hashText(value: string) {
+  let hash = 0;
+
+  for (let index = 0; index < value.length; index += 1) {
+    hash = (hash * 31 + value.charCodeAt(index)) >>> 0;
+  }
+
+  return hash;
+}
+
+function getCategoryTagClass(categoryId: string, categoryName: string) {
+  const seed = `${categoryId}::${categoryName}`;
+  return categoryTagPalette[hashText(seed) % categoryTagPalette.length];
 }
 
 function imageLoader({ src }: ImageLoaderProps) {
@@ -853,7 +881,7 @@ async function prepareImageForUpload(file: File) {
             </div>
           ) : (
             <div className="mt-3 overflow-x-auto">
-              <table className="w-full min-w-[920px] border-collapse text-sm">
+              <table className="w-full min-w-[1040px] border-collapse text-sm">
                 <thead>
                   <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-wide text-zinc-500">
                     <th className="py-2 pr-4">商品</th>
@@ -861,6 +889,7 @@ async function prepareImageForUpload(file: File) {
                     <th className="py-2 pr-4">库存</th>
                     <th className="py-2 pr-4">安全库存</th>
                     <th className="py-2 pr-4">单位</th>
+                    <th className="py-2 pr-4">备注</th>
                     <th className="py-2 pr-4">状态</th>
                     <th className="py-2 pr-4">更新时间</th>
                     <th className="py-2">操作</th>
@@ -869,7 +898,7 @@ async function prepareImageForUpload(file: File) {
                 <tbody>
                   {items.length === 0 ? (
                     <tr>
-                      <td className="py-10 text-center text-zinc-500" colSpan={8}>
+                      <td className="py-10 text-center text-zinc-500" colSpan={9}>
                         没有匹配的商品，试试调整筛选条件。
                       </td>
                     </tr>
@@ -910,10 +939,19 @@ async function prepareImageForUpload(file: File) {
                             </div>
                           </div>
                         </td>
-                        <td className="py-2 pr-4">{item.category.name}</td>
+                        <td className="py-2 pr-4">
+                          <Chip
+                            size="sm"
+                            variant="bordered"
+                            className={getCategoryTagClass(item.category.id, item.category.name)}
+                          >
+                            {item.category.name}
+                          </Chip>
+                        </td>
                         <td className="py-2 pr-4">{toNumber(item.currentStock)}</td>
                         <td className="py-2 pr-4">{toNumber(item.safetyStock)}</td>
                         <td className="py-2 pr-4">{item.unit}</td>
+                        <td className="py-2 pr-4 text-zinc-600">{item.remark || "-"}</td>
                         <td className="py-2 pr-4">
                           {!item.isActive ? (
                             <Chip size="sm" variant="soft" color="default">
@@ -1251,7 +1289,15 @@ async function prepareImageForUpload(file: File) {
                                 </Chip>
                               </td>
                               <td className="py-2 pr-4">{row.name}</td>
-                              <td className="py-2 pr-4">{row.categoryName}</td>
+                              <td className="py-2 pr-4">
+                                <Chip
+                                  size="sm"
+                                  variant="bordered"
+                                  className={getCategoryTagClass(row.categoryId, row.categoryName)}
+                                >
+                                  {row.categoryName}
+                                </Chip>
+                              </td>
                               <td className="py-2 pr-4">{row.unit}</td>
                               <td className="py-2 pr-4">{row.currentStock}</td>
                               <td className="py-2 pr-4">{row.safetyStock}</td>

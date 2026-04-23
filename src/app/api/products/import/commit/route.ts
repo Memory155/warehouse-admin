@@ -4,6 +4,18 @@ import { requireAuth } from "@/lib/auth/guard";
 import { canEditInventory } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/db";
 
+class ProductImportCommitError extends Error {
+  rowNumber: number;
+  cause: unknown;
+
+  constructor(rowNumber: number, cause: unknown) {
+    super(`第 ${rowNumber} 行导入失败`);
+    this.name = "ProductImportCommitError";
+    this.rowNumber = rowNumber;
+    this.cause = cause;
+  }
+}
+
 const commitRowSchema = z.object({
   rowNumber: z.number().int().min(2),
   action: z.enum(["create", "update"]),
@@ -72,9 +84,28 @@ export async function POST(request: Request) {
         const key = `${row.name}::${row.categoryId}`;
         const existingId = existingMap.get(key);
 
-        if (existingId) {
-          await tx.product.update({
-            where: { id: existingId },
+        try {
+          if (existingId) {
+            await tx.product.update({
+              where: { id: existingId },
+              data: {
+                name: row.name,
+                categoryId: row.categoryId,
+                unit: row.unit,
+                spec: row.spec || null,
+                currentStock: row.currentStock,
+                safetyStock: row.safetyStock,
+                location: row.location || null,
+                remark: row.remark || null,
+                isActive: row.isActive,
+                updatedBy: auth.user!.sub,
+              },
+            });
+            updatedCount += 1;
+            continue;
+          }
+
+          await tx.product.create({
             data: {
               name: row.name,
               categoryId: row.categoryId,
@@ -85,29 +116,14 @@ export async function POST(request: Request) {
               location: row.location || null,
               remark: row.remark || null,
               isActive: row.isActive,
+              createdBy: auth.user!.sub,
               updatedBy: auth.user!.sub,
             },
           });
-          updatedCount += 1;
-          continue;
+          createdCount += 1;
+        } catch (rowError) {
+          throw new ProductImportCommitError(row.rowNumber, rowError);
         }
-
-        await tx.product.create({
-          data: {
-            name: row.name,
-            categoryId: row.categoryId,
-            unit: row.unit,
-            spec: row.spec || null,
-            currentStock: row.currentStock,
-            safetyStock: row.safetyStock,
-            location: row.location || null,
-            remark: row.remark || null,
-            isActive: row.isActive,
-            createdBy: auth.user!.sub,
-            updatedBy: auth.user!.sub,
-          },
-        });
-        createdCount += 1;
       }
     });
 
@@ -126,6 +142,24 @@ export async function POST(request: Request) {
         { status: 400 },
       );
     }
+
+    if (error instanceof ProductImportCommitError) {
+      console.error("Product import commit failed on row", {
+        rowNumber: error.rowNumber,
+        cause: error.cause,
+        userId: auth.user?.sub,
+      });
+
+      return NextResponse.json(
+        { message: `第 ${error.rowNumber} 行导入失败，请检查该行数据后重试` },
+        { status: 500 },
+      );
+    }
+
+    console.error("Product import commit failed", {
+      error,
+      userId: auth.user?.sub,
+    });
 
     return NextResponse.json({ message: "商品导入失败，请稍后重试" }, { status: 500 });
   }

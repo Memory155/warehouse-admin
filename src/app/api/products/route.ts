@@ -5,6 +5,7 @@ import { canEditInventory } from "@/lib/auth/permissions";
 import { prisma } from "@/lib/db";
 
 const stockStatusEnum = z.enum(["normal", "low", "out"]);
+const pageSizeEnum = z.enum(["10", "20", "50", "100"]);
 const productImageSchema = z.object({
   imageUrl: z.string().trim().max(500, "图片地址过长").optional().default(""),
   imageKey: z.string().trim().max(500, "图片标识过长").optional().default(""),
@@ -49,8 +50,15 @@ export async function GET(request: Request) {
   const q = (url.searchParams.get("q") ?? "").trim();
   const categoryId = (url.searchParams.get("categoryId") ?? "").trim();
   const stockStatusRaw = (url.searchParams.get("stockStatus") ?? "").trim();
+  const pageRaw = url.searchParams.get("page") ?? "1";
+  const pageSizeRaw = url.searchParams.get("pageSize") ?? "10";
 
   const stockStatus = stockStatusEnum.safeParse(stockStatusRaw);
+  const parsedPage = Number(pageRaw);
+  const page = Number.isInteger(parsedPage) && parsedPage > 0 ? parsedPage : 1;
+  const pageSize = pageSizeEnum.safeParse(pageSizeRaw).success
+    ? Number(pageSizeRaw)
+    : 10;
 
   const products = await prisma.product.findMany({
     where: {
@@ -85,7 +93,27 @@ export async function GET(request: Request) {
       ? withStatus.filter((item) => item.stockStatus === stockStatus.data)
       : withStatus;
 
-  return NextResponse.json({ items });
+  const total = items.length;
+  const totalPages = Math.max(1, Math.ceil(total / pageSize));
+  const currentPage = Math.min(page, totalPages);
+  const start = (currentPage - 1) * pageSize;
+  const pagedItems = items.slice(start, start + pageSize);
+  const lowStockCount = items.filter((item) => item.stockStatus === "low").length;
+  const outCount = items.filter((item) => item.stockStatus === "out").length;
+
+  return NextResponse.json({
+    items: pagedItems,
+    pagination: {
+      page: currentPage,
+      pageSize,
+      total,
+      totalPages,
+    },
+    summary: {
+      lowStockCount,
+      outCount,
+    },
+  });
 }
 
 export async function POST(request: Request) {

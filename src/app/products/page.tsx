@@ -102,6 +102,18 @@ type ProductFilters = {
   includeInactive: boolean;
 };
 
+type ProductsPagination = {
+  page: number;
+  pageSize: number;
+  total: number;
+  totalPages: number;
+};
+
+type ProductsSummary = {
+  lowStockCount: number;
+  outCount: number;
+};
+
 const initialForm: ProductForm = {
   name: "",
   categoryId: "",
@@ -133,6 +145,13 @@ const defaultProductFilters: ProductFilters = {
   stockStatus: "",
   includeInactive: true,
 };
+
+const pageSizeOptions = [
+  { value: "10", label: "10 条/页" },
+  { value: "20", label: "20 条/页" },
+  { value: "50", label: "50 条/页" },
+  { value: "100", label: "100 条/页" },
+] as const;
 
 const categoryTagPalette = [
   "border-sky-200 bg-sky-50 text-sky-700",
@@ -267,6 +286,16 @@ function ProductImageField({
 export default function ProductsPage() {
   const [items, setItems] = useState<Product[]>([]);
   const [categories, setCategories] = useState<Category[]>([]);
+  const [pagination, setPagination] = useState<ProductsPagination>({
+    page: 1,
+    pageSize: 10,
+    total: 0,
+    totalPages: 1,
+  });
+  const [summary, setSummary] = useState<ProductsSummary>({
+    lowStockCount: 0,
+    outCount: 0,
+  });
   const [form, setForm] = useState<ProductForm>(initialForm);
   const [role, setRole] = useState<"SUPER_ADMIN" | "ADMIN" | "USER">("USER");
   const [loading, setLoading] = useState(true);
@@ -334,7 +363,10 @@ export default function ProductsPage() {
     }
   }
 
-  async function loadProducts(filters?: Partial<ProductFilters>) {
+  async function loadProducts(
+    filters?: Partial<ProductFilters>,
+    paginationOverrides?: Partial<Pick<ProductsPagination, "page" | "pageSize">>,
+  ) {
     setLoading(true);
 
     const resolvedFilters: ProductFilters = {
@@ -344,17 +376,26 @@ export default function ProductsPage() {
       includeInactive,
       ...filters,
     };
+    const resolvedPagination = {
+      page: pagination.page,
+      pageSize: pagination.pageSize,
+      ...paginationOverrides,
+    };
 
     const params = new URLSearchParams();
     if (resolvedFilters.keyword.trim()) params.set("q", resolvedFilters.keyword.trim());
     if (resolvedFilters.filterCategoryId) params.set("categoryId", resolvedFilters.filterCategoryId);
     if (resolvedFilters.stockStatus) params.set("stockStatus", resolvedFilters.stockStatus);
     if (resolvedFilters.includeInactive) params.set("includeInactive", "true");
+    params.set("page", String(resolvedPagination.page));
+    params.set("pageSize", String(resolvedPagination.pageSize));
 
     try {
       const response = await clientFetch(`/api/products?${params.toString()}`);
       const data = (await response.json()) as {
         items?: Product[];
+        pagination?: ProductsPagination;
+        summary?: ProductsSummary;
         message?: string;
       };
 
@@ -364,6 +405,20 @@ export default function ProductsPage() {
       }
 
       setItems(data.items ?? []);
+      setPagination(
+        data.pagination ?? {
+          page: resolvedPagination.page,
+          pageSize: resolvedPagination.pageSize,
+          total: data.items?.length ?? 0,
+          totalPages: 1,
+        },
+      );
+      setSummary(
+        data.summary ?? {
+          lowStockCount: 0,
+          outCount: 0,
+        },
+      );
     } catch (error) {
       if (isUnauthorizedRedirectError(error)) {
         return;
@@ -389,7 +444,28 @@ export default function ProductsPage() {
     setFilterCategoryId(defaultProductFilters.filterCategoryId);
     setStockStatus(defaultProductFilters.stockStatus);
     setIncludeInactive(defaultProductFilters.includeInactive);
-    await loadProducts(defaultProductFilters);
+    await loadProducts(defaultProductFilters, { page: 1 });
+  }
+
+  async function handleApplyFilters() {
+    await loadProducts(undefined, { page: 1 });
+  }
+
+  async function handlePageChange(nextPage: number) {
+    if (nextPage < 1 || nextPage > pagination.totalPages || nextPage === pagination.page) {
+      return;
+    }
+
+    await loadProducts(undefined, { page: nextPage });
+  }
+
+  async function handlePageSizeChange(value: string) {
+    const nextPageSize = Number(value);
+    if (!Number.isFinite(nextPageSize) || nextPageSize === pagination.pageSize) {
+      return;
+    }
+
+    await loadProducts(undefined, { page: 1, pageSize: nextPageSize });
   }
 
   function formatExportDate(date: Date) {
@@ -782,22 +858,30 @@ async function prepareImageForUpload(file: File) {
     }
   }
 
-  const lowStockCount = useMemo(
-    () => items.filter((item) => item.stockStatus === "low").length,
-    [items],
-  );
-  const outCount = useMemo(
-    () => items.filter((item) => item.stockStatus === "out").length,
-    [items],
-  );
+  const lowStockCount = summary.lowStockCount;
+  const outCount = summary.outCount;
+  const pageStart = pagination.total === 0 ? 0 : (pagination.page - 1) * pagination.pageSize + 1;
+  const pageEnd = pagination.total === 0
+    ? 0
+    : Math.min(pagination.page * pagination.pageSize, pagination.total);
+  const visiblePageNumbers = useMemo(() => {
+    const start = Math.max(1, pagination.page - 2);
+    const end = Math.min(pagination.totalPages, start + 4);
+    const adjustedStart = Math.max(1, end - 4);
+
+    return Array.from(
+      { length: end - adjustedStart + 1 },
+      (_, index) => adjustedStart + index,
+    );
+  }, [pagination.page, pagination.totalPages]);
 
   return (
     <div className="w-full space-y-4">
       <Card className="border border-zinc-200/70 bg-white/90 shadow-sm">
-        <Card.Header>
+        <Card.Header className="!flex-row flex-wrap items-center gap-3">
           <h1 className="text-xl font-semibold sm:text-2xl">商品管理</h1>
-          <p className="mt-1 text-sm text-zinc-600">
-            共 {items.length} 个商品，低库存 {lowStockCount} 个，缺货 {outCount} 个
+          <p className="text-sm text-zinc-600">
+            共 {pagination.total} 个商品，低库存 {lowStockCount} 个，缺货 {outCount} 个
           </p>
         </Card.Header>
       </Card>
@@ -867,7 +951,7 @@ async function prepareImageForUpload(file: File) {
                 <Button
                   type="button"
                   className="h-9 flex-1 bg-zinc-900 px-4 text-sm text-white hover:bg-zinc-700 lg:w-auto lg:flex-none"
-                  onClick={() => void loadProducts()}
+                  onClick={() => void handleApplyFilters()}
                 >
                   应用筛选
                 </Button>
@@ -931,130 +1015,200 @@ async function prepareImageForUpload(file: File) {
               加载中...
             </div>
           ) : (
-            <div className="mt-3 overflow-x-auto">
-              <table className="w-full min-w-[1040px] border-collapse text-sm">
-                <thead>
-                  <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-wide text-zinc-500">
-                    <th className="py-2 pr-4">商品</th>
-                    <th className="py-2 pr-4">分类</th>
-                    <th className="py-2 pr-4">库存</th>
-                    <th className="py-2 pr-4">安全库存</th>
-                    <th className="py-2 pr-4">单位</th>
-                    <th className="py-2 pr-4">备注</th>
-                    <th className="py-2 pr-4">状态</th>
-                    <th className="py-2 pr-4">更新时间</th>
-                    <th className="py-2">操作</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {items.length === 0 ? (
-                    <tr>
-                      <td className="py-10 text-center text-zinc-500" colSpan={9}>
-                        没有匹配的商品，试试调整筛选条件。
-                      </td>
+            <>
+                <div className="mt-3 h-[505px] overflow-auto">
+                <table className="w-full min-w-[1040px] border-collapse text-sm">
+                  <thead>
+                    <tr className="border-b border-zinc-200 text-left text-xs uppercase tracking-wide text-zinc-500">
+                      <th className="py-2 pr-4">商品</th>
+                      <th className="py-2 pr-4">分类</th>
+                      <th className="py-2 pr-4">库存</th>
+                      <th className="py-2 pr-4">安全库存</th>
+                      <th className="py-2 pr-4">单位</th>
+                      <th className="py-2 pr-4">备注</th>
+                      <th className="py-2 pr-4">状态</th>
+                      <th className="py-2 pr-4">更新时间</th>
+                      <th className="py-2">操作</th>
                     </tr>
-                  ) : (
-                    items.map((item) => (
-                      <tr
-                        key={item.id}
-                        className="border-b border-zinc-100 transition-colors hover:bg-zinc-50/80"
-                      >
-                        <td className="py-2 pr-4">
-                          <div className="flex items-center gap-3">
-                            <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">
-                              {item.imageUrl ? (
-                                <button
-                                  type="button"
-                                  className="block h-12 w-12"
-                                  onClick={() => setPreviewImageUrl(item.imageUrl!)}
-                                >
-                                  <Image
-                                    src={item.imageUrl}
-                                    alt={`${item.name}图片`}
-                                    loader={imageLoader}
-                                    unoptimized
-                                    width={48}
-                                    height={48}
-                                    className="h-12 w-12 object-cover"
-                                  />
-                                </button>
-                              ) : (
-                                <span className="text-[10px] text-zinc-400">无图</span>
-                              )}
-                            </div>
-                            <div className="min-w-0">
-                              <div className="font-medium">{item.name}</div>
-                              <div className="text-xs text-zinc-500">
-                                {item.spec || "-"} | {item.location || "-"}
+                  </thead>
+                  <tbody>
+                    {items.length === 0 ? (
+                      <tr>
+                        <td className="py-10 text-center text-zinc-500" colSpan={9}>
+                          没有匹配的商品，试试调整筛选条件。
+                        </td>
+                      </tr>
+                    ) : (
+                      items.map((item) => (
+                        <tr
+                          key={item.id}
+                          className="border-b border-zinc-100 transition-colors hover:bg-zinc-50/80"
+                        >
+                          <td className="py-2 pr-4">
+                            <div className="flex items-center gap-3">
+                              <div className="flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-lg border border-zinc-200 bg-zinc-50">
+                                {item.imageUrl ? (
+                                  <button
+                                    type="button"
+                                    className="block h-12 w-12"
+                                    onClick={() => setPreviewImageUrl(item.imageUrl!)}
+                                  >
+                                    <Image
+                                      src={item.imageUrl}
+                                      alt={`${item.name}图片`}
+                                      loader={imageLoader}
+                                      unoptimized
+                                      width={48}
+                                      height={48}
+                                      className="h-12 w-12 object-cover"
+                                    />
+                                  </button>
+                                ) : (
+                                  <span className="text-[10px] text-zinc-400">无图</span>
+                                )}
+                              </div>
+                              <div className="min-w-0">
+                                <div className="font-medium">{item.name}</div>
+                                <div className="text-xs text-zinc-500">
+                                  {item.spec || "-"} | {item.location || "-"}
+                                </div>
                               </div>
                             </div>
-                          </div>
-                        </td>
-                        <td className="py-2 pr-4">
-                          <Chip
-                            size="sm"
-                            variant="soft"
-                            className={getCategoryTagClass(item.category.id, item.category.name)}
-                          >
-                            {item.category.name}
-                          </Chip>
-                        </td>
-                        <td className="py-2 pr-4">{toNumber(item.currentStock)}</td>
-                        <td className="py-2 pr-4">{toNumber(item.safetyStock)}</td>
-                        <td className="py-2 pr-4">{item.unit}</td>
-                        <td className="py-2 pr-4 text-zinc-600">{item.remark || "-"}</td>
-                        <td className="py-2 pr-4">
-                          {!item.isActive ? (
-                            <Chip size="sm" variant="soft" color="default">
-                              停用
-                            </Chip>
-                          ) : item.stockStatus === "out" ? (
-                            <Chip size="sm" variant="soft" color="danger">
-                              缺货
-                            </Chip>
-                          ) : item.stockStatus === "low" ? (
-                            <Chip size="sm" variant="soft" color="warning">
-                              低库存
-                            </Chip>
-                          ) : (
-                            <Chip size="sm" variant="soft" color="success">
-                              正常
-                            </Chip>
-                          )}
-                        </td>
-                        <td className="py-2 pr-4">
-                          {new Date(item.updatedAt).toLocaleString()}
-                        </td>
-                        <td className="py-2">
-                          <div className="flex flex-wrap gap-2">
-                            <Button
-                              type="button"
+                          </td>
+                          <td className="py-2 pr-4">
+                            <Chip
                               size="sm"
-                              className="border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
-                              onClick={() => startEdit(item)}
-                              isDisabled={!isAdmin}
+                              variant="soft"
+                              className={getCategoryTagClass(item.category.id, item.category.name)}
                             >
-                              编辑
-                            </Button>
-                            {item.isActive ? (
+                              {item.category.name}
+                            </Chip>
+                          </td>
+                          <td className="py-2 pr-4">{toNumber(item.currentStock)}</td>
+                          <td className="py-2 pr-4">{toNumber(item.safetyStock)}</td>
+                          <td className="py-2 pr-4">{item.unit}</td>
+                          <td className="py-2 pr-4 text-zinc-600">{item.remark || "-"}</td>
+                          <td className="py-2 pr-4">
+                            {!item.isActive ? (
+                              <Chip size="sm" variant="soft" color="default">
+                                停用
+                              </Chip>
+                            ) : item.stockStatus === "out" ? (
+                              <Chip size="sm" variant="soft" color="danger">
+                                缺货
+                              </Chip>
+                            ) : item.stockStatus === "low" ? (
+                              <Chip size="sm" variant="soft" color="warning">
+                                低库存
+                              </Chip>
+                            ) : (
+                              <Chip size="sm" variant="soft" color="success">
+                                正常
+                              </Chip>
+                            )}
+                          </td>
+                          <td className="py-2 pr-4">
+                            {new Date(item.updatedAt).toLocaleString()}
+                          </td>
+                          <td className="py-2">
+                            <div className="flex flex-wrap gap-2">
                               <Button
                                 type="button"
                                 size="sm"
-                                className="border border-red-300 bg-white text-red-600 hover:bg-red-50"
-                                onClick={() => askDisableProduct(item)}
+                                className="border border-zinc-300 bg-white text-zinc-800 hover:bg-zinc-50"
+                                onClick={() => startEdit(item)}
                                 isDisabled={!isAdmin}
                               >
-                                停用
+                                编辑
                               </Button>
-                            ) : null}
-                          </div>
-                        </td>
-                      </tr>
-                    ))
-                  )}
-                </tbody>
-              </table>
-            </div>
+                              {item.isActive ? (
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  className="border border-red-300 bg-white text-red-600 hover:bg-red-50"
+                                  onClick={() => askDisableProduct(item)}
+                                  isDisabled={!isAdmin}
+                                >
+                                  停用
+                                </Button>
+                              ) : null}
+                            </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+              <div className="flex flex-col gap-3 border-t border-zinc-100 pt-4 lg:flex-row lg:items-center lg:justify-between">
+                <div className="flex items-center justify-between gap-3 text-sm text-zinc-600 lg:hidden">
+                  <span className="min-w-0 flex-1">显示第 {pageStart}-{pageEnd} 条，共 {pagination.total} 条</span>
+                  <div className="w-28 shrink-0">
+                    <AppSelect
+                      value={String(pagination.pageSize)}
+                      onChange={handlePageSizeChange}
+                      placeholder="10 条/页"
+                      triggerClassName="h-8 min-h-8 px-2 py-1 text-xs sm:h-9 sm:min-h-9 sm:px-3 sm:py-1.5 sm:text-sm"
+                      valueClassName="flex h-full items-center justify-center text-center"
+                      options={pageSizeOptions.map((item) => ({
+                        value: item.value,
+                        label: item.label,
+                      }))}
+                    />
+                  </div>
+                </div>
+                <div className="hidden text-sm text-zinc-600 lg:block">
+                  显示第 {pageStart}-{pageEnd} 条，共 {pagination.total} 条
+                </div>
+                <div className="flex items-center gap-2">
+                  <div className="hidden w-28 shrink-0 lg:block">
+                    <AppSelect
+                      value={String(pagination.pageSize)}
+                      onChange={handlePageSizeChange}
+                      placeholder="10 条/页"
+                      triggerClassName="h-9 min-h-9 py-1.5"
+                      valueClassName="flex h-full items-center justify-center text-center"
+                      options={pageSizeOptions.map((item) => ({
+                        value: item.value,
+                        label: item.label,
+                      }))}
+                    />
+                  </div>
+                  <Button
+                    type="button"
+                    className="h-9 border border-zinc-300 bg-white px-3 text-sm text-zinc-800 hover:bg-zinc-50"
+                    isDisabled={loading || pagination.page <= 1}
+                    onClick={() => void handlePageChange(pagination.page - 1)}
+                  >
+                    上一页
+                  </Button>
+                  <div className="flex items-center gap-1">
+                    {visiblePageNumbers.map((pageNumber) => (
+                      <Button
+                        key={pageNumber}
+                        type="button"
+                        className={
+                          pageNumber === pagination.page
+                            ? "h-9 min-w-9 bg-zinc-900 px-3 text-sm text-white hover:bg-zinc-700"
+                            : "h-9 min-w-9 border border-zinc-300 bg-white px-3 text-sm text-zinc-800 hover:bg-zinc-50"
+                        }
+                        onClick={() => void handlePageChange(pageNumber)}
+                      >
+                        {pageNumber}
+                      </Button>
+                    ))}
+                  </div>
+                  <Button
+                    type="button"
+                    className="h-9 border border-zinc-300 bg-white px-3 text-sm text-zinc-800 hover:bg-zinc-50"
+                    isDisabled={loading || pagination.page >= pagination.totalPages}
+                    onClick={() => void handlePageChange(pagination.page + 1)}
+                  >
+                    下一页
+                  </Button>
+                </div>
+              </div>
+            </>
           )}
         </Card.Content>
       </Card>

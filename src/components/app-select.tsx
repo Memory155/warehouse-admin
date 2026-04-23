@@ -16,6 +16,7 @@ type AppSelectProps = {
   placeholder?: string;
   ariaLabel?: string;
   disabled?: boolean;
+  triggerClassName?: string;
 };
 
 export default function AppSelect({
@@ -25,6 +26,7 @@ export default function AppSelect({
   placeholder = "请选择",
   ariaLabel,
   disabled = false,
+  triggerClassName = "",
 }: AppSelectProps) {
   const [open, setOpen] = useState(false);
 
@@ -47,7 +49,9 @@ export default function AppSelect({
       isDisabled={disabled}
       aria-label={ariaLabel ?? placeholder}
     >
-      <Select.Trigger className="w-full justify-between rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800">
+      <Select.Trigger
+        className={`w-full justify-between rounded-md border border-zinc-300 bg-white px-3 py-2 text-sm text-zinc-800 ${triggerClassName}`.trim()}
+      >
         <Select.Value>
           {() =>
             selectedLabel ? (

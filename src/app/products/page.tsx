@@ -95,6 +95,13 @@ type ImportPreviewResult = {
   };
 };
 
+type ProductFilters = {
+  keyword: string;
+  filterCategoryId: string;
+  stockStatus: "" | "normal" | "low" | "out";
+  includeInactive: boolean;
+};
+
 const initialForm: ProductForm = {
   name: "",
   categoryId: "",
@@ -118,6 +125,13 @@ const compressionOptions = {
   useWebWorker: true,
   initialQuality: 0.82,
   alwaysKeepResolution: false,
+};
+
+const defaultProductFilters: ProductFilters = {
+  keyword: "",
+  filterCategoryId: "",
+  stockStatus: "",
+  includeInactive: true,
 };
 
 const categoryTagPalette = [
@@ -320,14 +334,22 @@ export default function ProductsPage() {
     }
   }
 
-  async function loadProducts() {
+  async function loadProducts(filters?: Partial<ProductFilters>) {
     setLoading(true);
 
+    const resolvedFilters: ProductFilters = {
+      keyword,
+      filterCategoryId,
+      stockStatus,
+      includeInactive,
+      ...filters,
+    };
+
     const params = new URLSearchParams();
-    if (keyword.trim()) params.set("q", keyword.trim());
-    if (filterCategoryId) params.set("categoryId", filterCategoryId);
-    if (stockStatus) params.set("stockStatus", stockStatus);
-    if (includeInactive) params.set("includeInactive", "true");
+    if (resolvedFilters.keyword.trim()) params.set("q", resolvedFilters.keyword.trim());
+    if (resolvedFilters.filterCategoryId) params.set("categoryId", resolvedFilters.filterCategoryId);
+    if (resolvedFilters.stockStatus) params.set("stockStatus", resolvedFilters.stockStatus);
+    if (resolvedFilters.includeInactive) params.set("includeInactive", "true");
 
     try {
       const response = await clientFetch(`/api/products?${params.toString()}`);
@@ -360,6 +382,14 @@ export default function ProductsPage() {
     if (stockStatus) params.set("stockStatus", stockStatus);
     if (includeInactive) params.set("includeInactive", "true");
     return params;
+  }
+
+  async function handleResetFilters() {
+    setKeyword(defaultProductFilters.keyword);
+    setFilterCategoryId(defaultProductFilters.filterCategoryId);
+    setStockStatus(defaultProductFilters.stockStatus);
+    setIncludeInactive(defaultProductFilters.includeInactive);
+    await loadProducts(defaultProductFilters);
   }
 
   function formatExportDate(date: Date) {
@@ -787,40 +817,70 @@ async function prepareImageForUpload(file: File) {
           ) : null}
         </Card.Header>
         <Card.Content>
-          <div className="mt-3 grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-            <input
-              className="rounded-md border border-zinc-300 px-3 py-2 text-sm outline-none focus:border-zinc-600"
-              placeholder="搜索商品名称"
-              value={keyword}
-              onChange={(event) => setKeyword(event.target.value)}
-            />
-            <AppSelect
-              value={filterCategoryId || "__all__"}
-              onChange={(value) =>
-                setFilterCategoryId(value === "__all__" ? "" : value)
-              }
-              placeholder="全部分类"
-              options={[
-                { value: "__all__", label: "全部分类" },
-                ...categories.map((item) => ({ value: item.id, label: item.name })),
-              ]}
-            />
-            <AppSelect
-              value={stockStatus || "__all__"}
-              onChange={(value) =>
-                setStockStatus(
-                  value === "__all__" ? "" : (value as "" | "normal" | "low" | "out"),
-                )
-              }
-              placeholder="全部库存状态"
-              options={[
-                { value: "__all__", label: "全部库存状态" },
-                { value: "normal", label: "正常" },
-                { value: "low", label: "低库存" },
-                { value: "out", label: "缺货" },
-              ]}
-            />
-            <label className="flex items-center gap-2 text-sm">
+          <div className="space-y-3">
+            <div className="flex flex-col gap-3 lg:flex-row lg:items-center lg:gap-2">
+              <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap lg:flex-nowrap lg:gap-2">
+                <input
+                  className="h-9 w-full rounded-md border border-zinc-300 px-3 text-sm outline-none focus:border-zinc-600 sm:w-44 xl:w-52"
+                  placeholder="搜索商品名称"
+                  value={keyword}
+                  onChange={(event) => setKeyword(event.target.value)}
+                />
+                <AppSelect
+                  value={filterCategoryId || "__all__"}
+                  onChange={(value) =>
+                    setFilterCategoryId(value === "__all__" ? "" : value)
+                  }
+                  placeholder="全部分类"
+                  triggerClassName="h-9 min-h-9 sm:w-44 xl:w-52 py-1.5"
+                  options={[
+                    { value: "__all__", label: "全部分类" },
+                    ...categories.map((item) => ({ value: item.id, label: item.name })),
+                  ]}
+                />
+                <AppSelect
+                  value={stockStatus || "__all__"}
+                  onChange={(value) =>
+                    setStockStatus(
+                      value === "__all__" ? "" : (value as "" | "normal" | "low" | "out"),
+                    )
+                  }
+                  placeholder="全部库存状态"
+                  triggerClassName="h-9 min-h-9 sm:w-44 xl:w-52 py-1.5"
+                  options={[
+                    { value: "__all__", label: "全部库存状态" },
+                    { value: "normal", label: "正常" },
+                    { value: "low", label: "低库存" },
+                    { value: "out", label: "缺货" },
+                  ]}
+                />
+              </div>
+              <label className="flex h-9 items-center gap-2 text-sm text-zinc-700 lg:hidden">
+                <input
+                  type="checkbox"
+                  checked={includeInactive}
+                  onChange={(event) => setIncludeInactive(event.target.checked)}
+                />
+                包含停用商品
+              </label>
+              <div className="flex gap-2 lg:shrink-0">
+                <Button
+                  type="button"
+                  className="h-9 flex-1 bg-zinc-900 px-4 text-sm text-white hover:bg-zinc-700 lg:w-auto lg:flex-none"
+                  onClick={() => void loadProducts()}
+                >
+                  应用筛选
+                </Button>
+                <Button
+                  type="button"
+                  className="h-9 flex-1 border border-zinc-300 bg-white px-4 text-sm text-zinc-800 hover:bg-zinc-50 lg:w-auto lg:flex-none"
+                  onClick={() => void handleResetFilters()}
+                >
+                  重置
+                </Button>
+              </div>
+            </div>
+            <label className="hidden h-9 items-center gap-2 text-sm text-zinc-700 lg:flex">
               <input
                 type="checkbox"
                 checked={includeInactive}
@@ -828,15 +888,6 @@ async function prepareImageForUpload(file: File) {
               />
               包含停用商品
             </label>
-          </div>
-          <div className="mt-3">
-            <Button
-              type="button"
-              className="w-full bg-zinc-900 text-white hover:bg-zinc-700 sm:w-auto"
-              onClick={() => void loadProducts()}
-            >
-              应用筛选
-            </Button>
           </div>
         </Card.Content>
       </Card>

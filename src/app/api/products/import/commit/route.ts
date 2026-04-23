@@ -79,15 +79,34 @@ export async function POST(request: Request) {
     let createdCount = 0;
     let updatedCount = 0;
 
-    await prisma.$transaction(async (tx) => {
-      for (const row of body.rows) {
-        const key = `${row.name}::${row.categoryId}`;
-        const existingId = existingMap.get(key);
+    await prisma.$transaction(
+      async (tx) => {
+        for (const row of body.rows) {
+          const key = `${row.name}::${row.categoryId}`;
+          const existingId = existingMap.get(key);
 
-        try {
-          if (existingId) {
-            await tx.product.update({
-              where: { id: existingId },
+          try {
+            if (existingId) {
+              await tx.product.update({
+                where: { id: existingId },
+                data: {
+                  name: row.name,
+                  categoryId: row.categoryId,
+                  unit: row.unit,
+                  spec: row.spec || null,
+                  currentStock: row.currentStock,
+                  safetyStock: row.safetyStock,
+                  location: row.location || null,
+                  remark: row.remark || null,
+                  isActive: row.isActive,
+                  updatedBy: auth.user!.sub,
+                },
+              });
+              updatedCount += 1;
+              continue;
+            }
+
+            await tx.product.create({
               data: {
                 name: row.name,
                 categoryId: row.categoryId,
@@ -98,34 +117,22 @@ export async function POST(request: Request) {
                 location: row.location || null,
                 remark: row.remark || null,
                 isActive: row.isActive,
+                createdBy: auth.user!.sub,
                 updatedBy: auth.user!.sub,
               },
             });
-            updatedCount += 1;
-            continue;
+            createdCount += 1;
+          } catch (rowError) {
+            throw new ProductImportCommitError(row.rowNumber, rowError);
           }
-
-          await tx.product.create({
-            data: {
-              name: row.name,
-              categoryId: row.categoryId,
-              unit: row.unit,
-              spec: row.spec || null,
-              currentStock: row.currentStock,
-              safetyStock: row.safetyStock,
-              location: row.location || null,
-              remark: row.remark || null,
-              isActive: row.isActive,
-              createdBy: auth.user!.sub,
-              updatedBy: auth.user!.sub,
-            },
-          });
-          createdCount += 1;
-        } catch (rowError) {
-          throw new ProductImportCommitError(row.rowNumber, rowError);
         }
-      }
-    });
+      },
+      {
+        // Bulk imports can easily exceed Prisma's default 5s interactive transaction timeout.
+        maxWait: 10_000,
+        timeout: 30_000,
+      },
+    );
 
     return NextResponse.json({
       message: `导入完成，新增 ${createdCount} 条，更新 ${updatedCount} 条`,

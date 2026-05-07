@@ -1,7 +1,11 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 import { requireAuth } from "@/lib/auth/guard";
-import { AUTH_COOKIE_NAME, AUTH_EXPIRES_IN } from "@/lib/auth/constants";
+import {
+  AUTH_COOKIE_NAME,
+  AUTH_EXPIRES_IN,
+  shouldUseSecureAuthCookie,
+} from "@/lib/auth/constants";
 import { signAuthToken } from "@/lib/auth/jwt";
 import { prisma } from "@/lib/db";
 
@@ -89,7 +93,7 @@ export async function PATCH(request: Request) {
       value: token,
       httpOnly: true,
       sameSite: "lax",
-      secure: process.env.NODE_ENV === "production",
+      secure: shouldUseSecureAuthCookie(),
       maxAge: AUTH_EXPIRES_IN,
       path: "/",
     });
